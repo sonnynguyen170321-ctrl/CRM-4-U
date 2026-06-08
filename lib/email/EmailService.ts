@@ -1,0 +1,68 @@
+import type { EmailAccount } from '@prisma/client';
+import { GmailAdapter } from './adapters/GmailAdapter';
+import { OutlookAdapter } from './adapters/OutlookAdapter';
+import { ImapAdapter } from './adapters/ImapAdapter';
+import { decrypt } from '@/lib/crypto';
+
+export interface SendEmailOptions {
+  from: string;
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  replyTo?: string;
+}
+
+export interface EmailAdapter {
+  send(options: SendEmailOptions): Promise<void>;
+}
+
+/**
+ * Provider-agnostic email abstraction.
+ * Call EmailService.fromAccount(account) to get the right adapter.
+ */
+export class EmailService {
+  private adapter: EmailAdapter;
+
+  constructor(adapter: EmailAdapter) {
+    this.adapter = adapter;
+  }
+
+  async send(options: SendEmailOptions): Promise<void> {
+    return this.adapter.send(options);
+  }
+
+  static fromAccount(account: EmailAccount): EmailService {
+    switch (account.provider) {
+      case 'gmail':
+        return new EmailService(
+          new GmailAdapter({
+            accessToken: account.accessToken!,
+            refreshToken: account.refreshToken!,
+            tokenExpiry: account.tokenExpiry ?? undefined,
+          })
+        );
+
+      case 'outlook':
+        return new EmailService(
+          new OutlookAdapter({
+            accessToken: account.accessToken!,
+            refreshToken: account.refreshToken!,
+          })
+        );
+
+      case 'imap_smtp':
+      default:
+        return new EmailService(
+          new ImapAdapter({
+            email: account.email,
+            password: decrypt(account.encPassword!),
+            smtpServer: account.smtpServer!,
+            smtpPort: account.smtpPort ?? 465,
+            imapServer: account.imapServer ?? undefined,
+            imapPort: account.imapPort ?? undefined,
+          })
+        );
+    }
+  }
+}

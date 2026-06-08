@@ -1,0 +1,55 @@
+import { auth } from '@/auth';
+import { NextResponse } from 'next/server';
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'director' | 'floor_manager' | 'team_lead' | 'sdr';
+};
+
+/** Get the authenticated session user from a Server Component or API route. */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const session = await auth();
+  if (!session?.user) return null;
+  return session.user as SessionUser;
+}
+
+/** Require authentication in an API route handler. Returns user or 401 response. */
+export async function requireAuth(): Promise<SessionUser | NextResponse> {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return user;
+}
+
+/** Require a specific role (or above) in an API route handler. */
+export async function requireRole(
+  minRole: SessionUser['role']
+): Promise<SessionUser | NextResponse> {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const hierarchy: SessionUser['role'][] = ['sdr', 'team_lead', 'floor_manager', 'director'];
+  const userLevel = hierarchy.indexOf(user.role);
+  const requiredLevel = hierarchy.indexOf(minRole);
+
+  if (userLevel < requiredLevel) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return user;
+}
+
+/** Build a Prisma `where` clause that scopes leads/tasks to the user's role. */
+export function buildRoleScope(user: SessionUser) {
+  switch (user.role) {
+    case 'director':
+    case 'floor_manager':
+      return {}; // sees all
+    case 'team_lead':
+      return {}; // scoped further in queries by managerId
+    case 'sdr':
+    default:
+      return { assignedToId: user.id };
+  }
+}
