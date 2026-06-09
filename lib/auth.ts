@@ -47,7 +47,7 @@ export function buildRoleScope(user: SessionUser) {
     case 'floor_manager':
       return {}; // sees all
     case 'team_lead':
-      return {}; // scoped further in queries by managerId
+      return {}; // pod scoping (managerId) applied in each query — not handled here
     case 'sdr':
     default:
       return { assignedToId: user.id };

@@ -43,3 +43,5 @@ next-env.d.ts
 # Claude Code local settings (machine-specific, contains session paths)
 .claude/settings.local.json
 .claude/worktrees/
+
+.vercel

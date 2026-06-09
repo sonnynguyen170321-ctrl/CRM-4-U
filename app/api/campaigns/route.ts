@@ -12,14 +12,14 @@ export async function GET(req: NextRequest) {
 
   // Return clients list for the campaign modal dropdown
   if (type === 'clients') {
-    const clients = await (prisma as any).client.findMany({
+    const clients = await prisma.client.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, name: true, industry: true },
     });
     return NextResponse.json({ clients });
   }
 
-  const campaigns = await (prisma as any).campaign.findMany({
+  const campaigns = await prisma.campaign.findMany({
     include: { client: true },
     orderBy: { startDate: 'desc' },
   });
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   // Create new client if needed
   if (!clientId && body.newClientName) {
-    const newClient = await (prisma as any).client.create({
+    const newClient = await prisma.client.create({
       data: {
         name: body.newClientName,
         industry: body.targetVertical || '',
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Client is required' }, { status: 400 });
   }
 
-  const campaign = await (prisma as any).campaign.create({
+  const campaign = await prisma.campaign.create({
     data: {
       name: body.name,
       clientId,

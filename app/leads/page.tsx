@@ -655,7 +655,7 @@ export default function LeadsPage() {
               <tbody className="divide-y divide-card-border text-text-secondary">
                 {leads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center text-text-muted">
+                    <td colSpan={11} className="p-8 text-center text-text-muted">
                       No leads match the active search or filters.
                     </td>
                   </tr>

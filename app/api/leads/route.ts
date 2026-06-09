@@ -22,7 +22,17 @@ export async function GET(req: NextRequest) {
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? parseInt(limitParam, 10) : undefined;
 
-  const roleScope = buildRoleScope(user);
+  let roleScope: Record<string, unknown> = buildRoleScope(user);
+
+  // Team leads see only leads assigned to themselves or their direct SDR reports
+  if (user.role === 'team_lead') {
+    const reports = await prisma.user.findMany({
+      where: { managerId: user.id },
+      select: { id: true },
+    });
+    const podIds = [user.id, ...reports.map((r) => r.id)];
+    roleScope = { assignedToId: { in: podIds } };
+  }
 
   const leads = await prisma.lead.findMany({
     ...(limit ? { take: limit } : {}),
@@ -67,8 +77,12 @@ export async function GET(req: NextRequest) {
         select: { type: true, createdAt: true },
       },
     },
-    orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
+    orderBy: [{ updatedAt: 'desc' }],
   });
+
+  // Sort by priority: hot → warm → cold (DB enum order is alphabetical, not business order)
+  const priorityRank: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
+  leads.sort((a: any, b: any) => (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2));
 
   const enriched = leads.map((l: any) => {
     const aiScore = scoreLead({
