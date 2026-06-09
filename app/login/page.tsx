@@ -3,7 +3,22 @@
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Flame, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Flame, Mail, Lock, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+
+const DEMO_ACCOUNTS = [
+  { label: 'Director', name: 'Dean', email: 'dean@telestar.vn', role: 'director' },
+  { label: 'Floor Manager', name: 'Sonny', email: 'sonny@telestar.vn', role: 'floor_manager' },
+  { label: 'Floor Manager', name: 'Alayna', email: 'alayna@telestar.vn', role: 'floor_manager' },
+  { label: 'Team Lead', name: 'Brandon', email: 'brandon@telestar.vn', role: 'team_lead' },
+  { label: 'SDR', name: 'Lan Pham', email: 'lan.pham@telestar.vn', role: 'sdr' },
+] as const;
+
+const ROLE_COLORS: Record<string, string> = {
+  director: 'border-brand-red/40 bg-brand-red/5 text-brand-red hover:bg-brand-red/10',
+  floor_manager: 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange hover:bg-brand-orange/10',
+  team_lead: 'border-amber-500/40 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10',
+  sdr: 'border-card-border bg-background text-text-secondary hover:bg-card-bg',
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,20 +26,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDemo, setShowDemo] = useState(true);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSignIn = async (e: string, p: string) => {
     setLoading(true);
     setError('');
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
+    const result = await signIn('credentials', { email: e, password: p, redirect: false });
     setLoading(false);
-
     if (result?.error) {
       setError('Invalid email or password.');
     } else {
@@ -33,17 +41,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoAccess = async () => {
-    setLoading(true);
-    setError('');
-    await signIn('credentials', {
-      email: 'son@telestar.co',
-      password: 'telestar2026',
-      redirect: false,
-    });
-    setLoading(false);
-    router.push('/');
-    router.refresh();
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    doSignIn(email, password);
   };
 
   return (
@@ -62,10 +62,45 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Demo Accounts panel */}
+        <div className="mb-4 bg-card-bg border border-card-border rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowDemo(!showDemo)}
+            className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold font-mono text-text-muted uppercase tracking-widest hover:bg-background/40 transition-colors"
+          >
+            <span>⚡ Demo Accounts — click to sign in</span>
+            {showDemo ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {showDemo && (
+            <div className="px-3 pb-3 space-y-1.5 border-t border-card-border/60 pt-3">
+              <p className="text-[10px] text-text-muted text-center mb-2">
+                Password for all accounts: <span className="font-mono text-text-secondary">telestar2026</span>
+              </p>
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => doSignIn(account.email, 'telestar2026')}
+                  className={`w-full py-2 px-3 border rounded-xl text-xs font-semibold transition-colors flex items-center justify-between disabled:opacity-50 ${ROLE_COLORS[account.role]}`}
+                >
+                  <span>{account.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] opacity-70">{account.email}</span>
+                    <span className="opacity-60 text-[10px] border border-current/20 rounded px-1.5 py-0.5">{account.label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Login card */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-lg">
           <h2 className="font-display font-bold text-sm text-text-primary mb-5">
-            Sign in to your workspace
+            Sign in with your account
           </h2>
 
           {error && (
@@ -86,7 +121,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@telestar.co"
+                  placeholder="you@telestar.vn"
                   required
                   className="w-full pl-9 pr-4 py-2.5 bg-background border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
                 />
@@ -128,25 +163,6 @@ export default function LoginPage() {
 
           <p className="text-center text-[10px] text-text-muted mt-5 leading-relaxed">
             No self-registration. Contact your Director to get access.
-          </p>
-        </div>
-
-        {/* Quick Demo Access */}
-        <div className="mt-4 p-4 bg-card-bg border border-card-border/60 rounded-xl space-y-3">
-          <p className="text-[10px] text-text-muted text-center font-mono uppercase tracking-widest">
-            Demo Access
-          </p>
-          <button
-            type="button"
-            onClick={handleDemoAccess}
-            disabled={loading}
-            className="w-full py-2 border border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 text-brand-orange text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <span>⚡</span>
-            Continue as Director (Son Nguyen)
-          </button>
-          <p className="text-[10px] text-text-muted text-center leading-relaxed">
-            <span className="font-mono">son@telestar.co</span> · <span className="font-mono">telestar2026</span>
           </p>
         </div>
       </div>
