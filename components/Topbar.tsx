@@ -81,7 +81,11 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
       .catch(() => fetchBellData());
 
     window.addEventListener('crm:reminder-created', fetchBellData);
-    return () => window.removeEventListener('crm:reminder-created', fetchBellData);
+    window.addEventListener('crm:notifications-updated', fetchBellData);
+    return () => {
+      window.removeEventListener('crm:reminder-created', fetchBellData);
+      window.removeEventListener('crm:notifications-updated', fetchBellData);
+    };
   }, []);
 
   const runSearch = useCallback(async (q: string) => {

@@ -23,6 +23,9 @@ export async function POST(
   if (!sequence) {
     return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
   }
+  if (!sequence.isActive) {
+    return NextResponse.json({ error: 'Sequence is inactive' }, { status: 400 });
+  }
 
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) {
@@ -48,7 +51,7 @@ export async function POST(
     data: {
       sequenceId: id,
       sequenceStep: 1,
-      stage: 'sequence_active',
+      ...(lead.stage === 'new' ? { stage: 'sequence_active' } : {}),
     },
   });
 

@@ -30,7 +30,7 @@ export class ImapAdapter implements EmailAdapter {
         user: this.config.email,
         pass: this.config.password,
       },
-      tls: { rejectUnauthorized: false }, // allow self-signed certs for internal mail servers
+      tls: { rejectUnauthorized: process.env.MAIL_ALLOW_SELF_SIGNED !== 'true' },
     });
 
     await transporter.sendMail({
@@ -51,7 +51,7 @@ export class ImapAdapter implements EmailAdapter {
         port: this.config.smtpPort,
         secure: this.config.smtpPort === 465,
         auth: { user: this.config.email, pass: this.config.password },
-        tls: { rejectUnauthorized: false },
+        tls: { rejectUnauthorized: process.env.MAIL_ALLOW_SELF_SIGNED !== 'true' },
       });
       await transporter.verify();
       return true;

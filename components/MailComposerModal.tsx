@@ -15,11 +15,17 @@ interface MailComposerModalProps {
 export default function MailComposerModal({ task: _task, lead, onClose, onSend }: MailComposerModalProps) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/templates')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((templates: { channel: string; subject?: string | null; body: string }[]) => {
+    Promise.all([
+      fetch('/api/templates').then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/email/accounts').then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([templates, accounts]: [{ channel: string; subject?: string | null; body: string }[], any[]]) => {
+        const activeAccount = Array.isArray(accounts) ? accounts[0] : null;
+        setConnectedEmail(activeAccount?.email ?? null);
+
         const template = templates.find((t) => t.channel === 'email') ?? templates[0];
         if (!template) return;
 
@@ -84,7 +90,7 @@ export default function MailComposerModal({ task: _task, lead, onClose, onSend }
           <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-3 text-[10px] text-text-secondary leading-normal flex gap-2">
             <AlertCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
             <span>
-              Connected account: **lan.pham@gmail.com** (Gmail OAuth). All emails logged here sync with the lead sequence automatically.
+              Connected account: <strong>{connectedEmail ?? 'No email connected'}</strong> — All emails logged here sync with the lead sequence automatically.
             </span>
           </div>
 

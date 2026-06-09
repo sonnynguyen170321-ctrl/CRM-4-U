@@ -287,7 +287,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     });
     if (res.ok) {
       setReminders((prev) => prev.filter((r) => r.id !== reminderId));
-      window.dispatchEvent(new CustomEvent('crm:reminder-created'));
+      window.dispatchEvent(new CustomEvent('crm:notifications-updated'));
     } else {
       showToast('Failed to dismiss reminder', 'error');
     }

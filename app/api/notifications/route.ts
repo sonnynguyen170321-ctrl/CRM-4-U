@@ -34,11 +34,14 @@ export async function PUT(req: NextRequest) {
   const body = await req.json();
 
   if (body.id) {
-    // Mark a single notification as read
-    await prisma.notification.update({
-      where: { id: body.id },
+    // Mark a single notification as read — ownership enforced
+    const updated = await prisma.notification.updateMany({
+      where: { id: body.id, userId: user.id },
       data: { isRead: true },
     });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
   } else {
     // Mark all as read
     await prisma.notification.updateMany({
