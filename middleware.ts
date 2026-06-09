@@ -1,18 +1,21 @@
-import NextAuth from 'next-auth';
-import { authConfig } from './auth.config';
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
-const { auth } = NextAuth(authConfig);
-export const middleware = auth;
+export async function middleware(req: NextRequest) {
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  });
+
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    /*
-     * Match all routes EXCEPT:
-     * - /api (API routes handle their own auth via requireAuth())
-     * - /_next (Next.js internals)
-     * - /favicon.ico, /public assets
-     * - /login (the sign-in page itself)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|login).*)',
   ],
 };
