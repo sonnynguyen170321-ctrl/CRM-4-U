@@ -83,6 +83,22 @@ export async function DELETE(
   const existing = await prisma.sequence.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  await prisma.sequence.delete({ where: { id } });
+  // Unenroll all leads and nullify activity/task FK references before deleting
+  await prisma.$transaction([
+    prisma.lead.updateMany({
+      where: { sequenceId: id },
+      data: { sequenceId: null, sequenceStep: null },
+    }),
+    prisma.activity.updateMany({
+      where: { sequenceId: id },
+      data: { sequenceId: null },
+    }),
+    prisma.task.updateMany({
+      where: { sequenceId: id },
+      data: { sequenceId: null, sequenceStep: null },
+    }),
+    prisma.sequence.delete({ where: { id } }),
+  ]);
+
   return NextResponse.json({ success: true });
 }

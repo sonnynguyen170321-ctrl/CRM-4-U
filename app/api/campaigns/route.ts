@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const newClient = await (prisma as any).client.create({
       data: {
         name: body.newClientName,
-        industry: body.targetVertical ?? null,
+        industry: body.targetVertical || '',
         contactName: user.firstName + ' ' + user.lastName,
         contactEmail: user.email,
         status: 'active',

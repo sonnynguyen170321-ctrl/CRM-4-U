@@ -19,10 +19,13 @@ export async function GET(req: NextRequest) {
   const tag = searchParams.get('tag') || undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
+  const limitParam = searchParams.get('limit');
+  const limit = limitParam ? parseInt(limitParam, 10) : undefined;
 
   const roleScope = buildRoleScope(user);
 
   const leads = await prisma.lead.findMany({
+    ...(limit ? { take: limit } : {}),
     where: {
       ...roleScope,
       ...(stage ? { stage: stage as any } : {}),

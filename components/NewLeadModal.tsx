@@ -176,14 +176,18 @@ export default function NewLeadModal({ onClose, onSuccess }: Props) {
             </div>
 
             {/* Campaign */}
-            {campaigns.length > 0 && (
+            {campaigns.length > 0 ? (
               <div>
-                <label className={labelClass}>Campaign</label>
+                <label className={labelClass}>Campaign <span className="text-brand-red">*</span></label>
                 <select value={form.campaignId} onChange={set('campaignId')} className={inputClass}>
                   {campaigns.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                No campaigns exist yet. Please create a campaign before adding leads.
               </div>
             )}
 
@@ -210,7 +214,7 @@ export default function NewLeadModal({ onClose, onSuccess }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || campaigns.length === 0}
                 className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
               >
                 {saving ? (

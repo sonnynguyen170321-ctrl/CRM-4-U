@@ -161,6 +161,7 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!loggingTask) return;
     const task = loggingTask;
+    if ((task.type === 'linkedin' || task.type === 'whatsapp') && !channelAction) return;
     const outcome = task.type === 'phone' ? callOutcome : channelAction;
     const noteWithResponse = (task.type === 'linkedin' || task.type === 'whatsapp') && responseReceived
       ? `[Response received] ${activityNote}`.trim()

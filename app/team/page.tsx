@@ -89,7 +89,7 @@ export default function TeamViewPage() {
       calls: getCount('call_logged'),
       emails: getCount('email_sent'),
       linkedin: getCount('linkedin_touch'),
-      whatsapp: getCount('whatsapp_sent'),
+      whatsapp: getCount('whatsapp_message'),
       booked: getCount('meeting_booked'),
     };
   }).sort((a, b) => b.booked - a.booked || b.calls + b.emails - (a.calls + a.emails));

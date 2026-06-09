@@ -327,7 +327,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     setSavingLog(true);
     try {
       const typeMap: Record<string, string> = {
-        email: 'email_sent', phone: 'call_made', linkedin: 'linkedin_sent', whatsapp: 'whatsapp_sent',
+        email: 'email_sent', phone: 'call_logged', linkedin: 'linkedin_touch', whatsapp: 'whatsapp_message',
       };
       await fetch('/api/activities', {
         method: 'POST',

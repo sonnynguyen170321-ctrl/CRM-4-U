@@ -473,7 +473,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
                           className={`p-3 text-xs transition-colors hover:bg-background/80 relative flex items-start gap-2.5 ${item.linkTo ? 'cursor-pointer' : ''} ${!item.isRead ? 'bg-brand-red/[0.02]' : ''}`}
                         >
                           <span className="mt-0.5 text-base flex-shrink-0">
-                            {item.type === 'meeting_booked' ? '🎉' : item.type === 'overdue_task' ? '⚠️' : item.type === 'lead_reply' ? '📧' : '🔔'}
+                            {item.type === 'meeting_booked' ? '🎉' : item.type === 'overdue_tasks' ? '⚠️' : item.type === 'lead_reply' ? '📧' : '🔔'}
                           </span>
                           <div className="flex-1 min-w-0 pr-6">
                             <p className="text-text-secondary text-[11px] leading-normal">{item.text}</p>

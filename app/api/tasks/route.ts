@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
           company: true,
           priority: true,
           stage: true,
+          tags: true,
         },
       },
       user: { select: { id: true, firstName: true, lastName: true } },
