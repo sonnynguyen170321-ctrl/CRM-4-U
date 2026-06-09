@@ -1,0 +1,34 @@
+import type { NextAuthConfig } from 'next-auth';
+
+// Edge-compatible auth config — no Prisma, no bcrypt.
+// Used by middleware.ts to validate JWT tokens without importing heavy Node.js modules.
+// The full credentials provider (with Prisma) lives in auth.ts.
+export const authConfig: NextAuthConfig = {
+  trustHost: true,
+  session: { strategy: 'jwt' },
+  pages: { signIn: '/login' },
+  providers: [],
+  callbacks: {
+    authorized({ auth }) {
+      return !!auth?.user;
+    },
+    jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.firstName = (user as any).firstName;
+        token.lastName = (user as any).lastName;
+        token.role = (user as any).role;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string;
+        (session.user as any).firstName = token.firstName;
+        (session.user as any).lastName = token.lastName;
+        (session.user as any).role = token.role;
+      }
+      return session;
+    },
+  },
+};
