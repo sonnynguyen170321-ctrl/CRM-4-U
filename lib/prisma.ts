@@ -1,17 +1,20 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaNeonHttp } from '@prisma/adapter-neon';
+import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+// PrismaNeonHttp uses Neon's HTTP transport instead of a persistent TCP connection.
+// This eliminates the TCP handshake + PG auth overhead on every Vercel cold invocation,
+// making serverless DB calls noticeably faster without any WebSocket setup.
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+
+function createPrismaClient() {
+  const adapter = new PrismaNeonHttp(process.env.DATABASE_URL!, {});
+  return new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  });
 }
 
-// On Neon (serverless PostgreSQL), each function invocation may open a new connection.
-// DATABASE_URL should include ?pgbouncer=true&connection_limit=1 for pgBouncer mode,
-// or use DIRECT_URL for migrations. See .env.local.example for the full template.
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  })
-
-// Reuse the client across hot-reloads in development to avoid exhausting connections.
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Reuse across hot-reloads in development to avoid exhausting connections.
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

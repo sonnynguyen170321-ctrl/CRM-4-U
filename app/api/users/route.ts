@@ -24,7 +24,9 @@ export async function GET() {
     orderBy: [{ role: 'asc' }, { lastName: 'asc' }],
   });
 
-  return NextResponse.json(users);
+  return NextResponse.json(users, {
+    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -16,7 +16,9 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' },
       select: { id: true, name: true, industry: true },
     });
-    return NextResponse.json({ clients });
+    return NextResponse.json({ clients }, {
+      headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+    });
   }
 
   const campaigns = await prisma.campaign.findMany({
@@ -24,7 +26,9 @@ export async function GET(req: NextRequest) {
     orderBy: { startDate: 'desc' },
   });
 
-  return NextResponse.json(campaigns);
+  return NextResponse.json(campaigns, {
+    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  });
 }
 
 export async function POST(req: NextRequest) {

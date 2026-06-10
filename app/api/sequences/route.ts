@@ -16,7 +16,9 @@ export async function GET(_req: NextRequest) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json(sequences);
+  return NextResponse.json(sequences, {
+    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  });
 }
 
 export async function POST(req: NextRequest) {

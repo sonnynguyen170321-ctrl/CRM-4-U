@@ -19,9 +19,10 @@ export async function GET(req: NextRequest) {
     take: 50,
   });
 
-  const unreadCount = await prisma.notification.count({
-    where: { userId: user.id, isRead: false },
-  });
+  // Derive unread count from fetched rows — avoids a second round-trip to Neon
+  const unreadCount = unreadOnly
+    ? notifications.length
+    : notifications.filter((n) => !n.isRead).length;
 
   return NextResponse.json({ notifications, unreadCount });
 }

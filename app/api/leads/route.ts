@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   const leads = await prisma.lead.findMany({
-    ...(limit ? { take: limit } : {}),
+    take: limit ?? 200,
     where: {
       ...roleScope,
       ...(stage ? { stage: stage as any } : {}),
@@ -71,11 +71,6 @@ export async function GET(req: NextRequest) {
         take: 5,
         select: { dueDate: true, type: true, status: true },
       },
-      activities: {
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-        select: { type: true, createdAt: true },
-      },
     },
     orderBy: [{ updatedAt: 'desc' }],
   });
@@ -85,10 +80,7 @@ export async function GET(req: NextRequest) {
   leads.sort((a: any, b: any) => (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2));
 
   const enriched = leads.map((l: any) => {
-    const aiScore = scoreLead({
-      ...l,
-      activities: l.activities ?? [],
-    });
+    const aiScore = scoreLead({ ...l, activities: [] });
     return {
       ...l,
       nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
@@ -98,7 +90,6 @@ export async function GET(req: NextRequest) {
       aiInsights: aiScore.insights,
       aiRecommendation: aiScore.recommendation,
       tasks: undefined,
-      activities: undefined,
     };
   });
 
