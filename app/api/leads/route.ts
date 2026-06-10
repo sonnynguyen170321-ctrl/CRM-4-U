@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
 
   let roleScope: Record<string, unknown> = buildRoleScope(user);
 
-  // Team leads see only leads assigned to themselves or their direct SDR reports
-  if (user.role === 'team_lead') {
+  // Team leads and leadgen see only leads assigned to themselves or their direct reports
+  if (user.role === 'team_lead' || user.role === 'leadgen') {
     const reports = await prisma.user.findMany({
       where: { managerId: user.id },
       select: { id: true },

@@ -11,6 +11,7 @@ const DEMO_ACCOUNTS = [
   { label: 'Floor Manager', name: 'Alayna', email: 'alayna@telestar.vn', role: 'floor_manager' },
   { label: 'Team Lead', name: 'Brandon', email: 'brandon@telestar.vn', role: 'team_lead' },
   { label: 'SDR', name: 'Lan Pham', email: 'lan.pham@telestar.vn', role: 'sdr' },
+  { label: 'Leadgen', name: 'Maya', email: 'maya@telestar.vn', role: 'leadgen' },
 ] as const;
 
 const ROLE_COLORS: Record<string, string> = {
@@ -18,6 +19,7 @@ const ROLE_COLORS: Record<string, string> = {
   floor_manager: 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange hover:bg-brand-orange/10',
   team_lead: 'border-amber-500/40 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10',
   sdr: 'border-card-border bg-background text-text-secondary hover:bg-card-bg',
+  leadgen: 'border-purple-500/40 bg-purple-500/5 text-purple-400 hover:bg-purple-500/10',
 };
 
 export default function LoginPage() {

@@ -10,12 +10,13 @@ import {
   FileText,
   BarChart3,
   Settings,
-  ChevronLeft
+  ChevronLeft,
+  Target,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
 interface SidebarProps {
-  userRole?: 'director' | 'floor_manager' | 'team_lead' | 'sdr';
+  userRole?: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
   isCollapsed?: boolean;
   onToggle?: () => void;
 }
@@ -29,8 +30,10 @@ export default function Sidebar({ userRole = 'sdr', isCollapsed = false, onToggl
     { name: 'Leads', href: '/leads', icon: Users },
     { name: 'Sequences', href: '/sequences', icon: Repeat },
     { name: 'Templates', href: '/templates', icon: FileText },
-    // Team View visible for Director, Floor Manager, and Team Lead
-    ...(userRole !== 'sdr' ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
+    // Leadgen gets their own view instead of Team View
+    ...(userRole === 'leadgen' ? [{ name: 'Leadgen', href: '/leadgen', icon: Target }] : []),
+    // Team View visible for Director, Floor Manager, and Team Lead (not SDR, not Leadgen)
+    ...(userRole !== 'sdr' && userRole !== 'leadgen' ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

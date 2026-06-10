@@ -15,6 +15,7 @@ enum Role {
   floor_manager
   team_lead
   sdr
+  leadgen
 }
 
 enum LeadStage {

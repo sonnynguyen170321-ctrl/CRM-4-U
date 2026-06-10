@@ -837,6 +837,7 @@ export default function SettingsPage() {
                     <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}
                       className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
                       <option value="sdr">SDR</option>
+                      <option value="leadgen">Leadgen</option>
                       <option value="team_lead">Team Lead</option>
                       <option value="floor_manager">Floor Manager</option>
                       <option value="director">Director</option>

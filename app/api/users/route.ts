@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 
 export async function GET() {
-  const userOrRes = await requireRole('team_lead');
+  const userOrRes = await requireRole('leadgen');
   if (userOrRes instanceof NextResponse) return userOrRes;
 
   const users = await prisma.user.findMany({

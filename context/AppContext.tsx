@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 
-export type UserRole = 'director' | 'floor_manager' | 'team_lead' | 'sdr';
+export type UserRole = 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
 
 interface AppContextType {
   currentRole: UserRole;

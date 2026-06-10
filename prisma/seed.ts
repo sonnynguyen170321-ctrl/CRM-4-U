@@ -202,6 +202,43 @@ async function main() {
     },
   });
 
+  // Leadgen team
+  const maya = await prisma.user.create({
+    data: {
+      email: 'maya@telestar.vn',
+      password: pw,
+      firstName: 'Maya',
+      lastName: '',
+      role: 'leadgen',
+      managerId: dean.id,
+      timezone: 'Asia/Ho_Chi_Minh',
+    },
+  });
+
+  const alexLG = await prisma.user.create({
+    data: {
+      email: 'alex@telestar.vn',
+      password: pw,
+      firstName: 'Alex',
+      lastName: '',
+      role: 'leadgen',
+      managerId: maya.id,
+      timezone: 'Europe/London',
+    },
+  });
+
+  const priyaLG = await prisma.user.create({
+    data: {
+      email: 'priya@telestar.vn',
+      password: pw,
+      firstName: 'Priya',
+      lastName: '',
+      role: 'leadgen',
+      managerId: maya.id,
+      timezone: 'Asia/Kolkata',
+    },
+  });
+
   console.log('✅ Users created');
 
   // ─── Clients ──────────────────────────────────────────────────────────────
@@ -271,6 +308,17 @@ async function main() {
     },
   });
 
+  const cmpLG = await prisma.campaign.create({
+    data: {
+      clientId: acme.id,
+      name: 'Leadgen Qualification Pool',
+      targetVertical: 'Multi-sector',
+      targetGeo: 'Global',
+      status: 'active',
+      startDate: new Date('2026-06-01'),
+    },
+  });
+
   // Assign SDRs to campaigns
   await prisma.campaignSdr.createMany({
     data: [
@@ -278,6 +326,9 @@ async function main() {
       { campaignId: cmp1.id, userId: david.id },
       { campaignId: cmp2.id, userId: vy.id },
       { campaignId: cmp3.id, userId: carlos.id },
+      { campaignId: cmpLG.id, userId: maya.id },
+      { campaignId: cmpLG.id, userId: alexLG.id },
+      { campaignId: cmpLG.id, userId: priyaLG.id },
     ],
   });
 
@@ -442,6 +493,15 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     { firstName: 'Diego', lastName: 'Morales', company: 'Cartagena Freight', title: 'Head of Logistics', email: 'd.morales@cartagenafreight.co', stage: 'sequence_active', priority: 'warm', assignedTo: carlos.id, campaign: cmp3 },
     { firstName: 'Sophie', lastName: 'Laurent', company: 'Lyon 3PL', title: 'Operations Director', email: 's.laurent@lyon3pl.fr', stage: 'new', priority: 'cold', assignedTo: carlos.id, campaign: cmp3 },
     { firstName: 'Ahmad', lastName: 'Karimi', company: 'Tehran Trade Hub', title: 'Supply Chain Manager', email: 'a.karimi@tehranhub.ir', stage: 'lost', priority: 'cold', assignedTo: carlos.id, campaign: cmp3 },
+    // Leadgen team leads (cmpLG)
+    { firstName: 'Adam', lastName: 'Clarke', company: 'NorthBridge Capital', title: 'CFO', email: 'a.clarke@northbridge.co', stage: 'new', priority: 'hot', assignedTo: maya.id, campaign: cmpLG },
+    { firstName: 'Clara', lastName: 'Wu', company: 'ShenZhen Tech', title: 'VP Sales', email: 'c.wu@shenzhentech.cn', stage: 'new', priority: 'warm', assignedTo: maya.id, campaign: cmpLG },
+    { firstName: 'Omar', lastName: 'Hassan', company: 'Cairo Trade Co', title: 'Director', email: 'o.hassan@cairotrade.eg', stage: 'replied', priority: 'hot', assignedTo: maya.id, campaign: cmpLG },
+    { firstName: 'James', lastName: 'Okafor', company: 'Lagos Fintech Hub', title: 'CEO', email: 'j.okafor@lagosfintech.ng', stage: 'replied', priority: 'hot', assignedTo: alexLG.id, campaign: cmpLG },
+    { firstName: 'Nia', lastName: 'Bartel', company: 'BerlinGrowth GmbH', title: 'Head of Partnerships', email: 'n.bartel@berlingrowth.de', stage: 'new', priority: 'warm', assignedTo: alexLG.id, campaign: cmpLG },
+    { firstName: 'Elena', lastName: 'Popov', company: 'Sofia Analytics', title: 'CTO', email: 'e.popov@sofiaanalytics.bg', stage: 'meeting_booked', priority: 'hot', assignedTo: alexLG.id, campaign: cmpLG },
+    { firstName: 'Raj', lastName: 'Mehta', company: 'Mumbai StartupLab', title: 'Founder', email: 'raj.mehta@mumbai-lab.in', stage: 'new', priority: 'cold', assignedTo: priyaLG.id, campaign: cmpLG },
+    { firstName: 'Sara', lastName: 'Lindqvist', company: 'StockholmOps', title: 'Operations Manager', email: 's.lindqvist@stockholmops.se', stage: 'replied', priority: 'warm', assignedTo: priyaLG.id, campaign: cmpLG },
   ];
 
   const createdLeads: any[] = [];
@@ -554,6 +614,18 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     // Carlos
     { userId: carlos.id, leadId: createdLeads[13].id, type: 'email_sent', channel: 'email', description: 'Cold email to Diego Morales', createdAt: d(-5) },
     { userId: carlos.id, leadId: createdLeads[13].id, type: 'linkedin_touch', channel: 'linkedin', description: 'LinkedIn connection request to Diego', metadata: { action: 'Connection Request Sent', response_received: false }, createdAt: d(-3) },
+    // Leadgen team — Maya, Alex, Priya (indices 16-23 in createdLeads)
+    { userId: maya.id, leadId: createdLeads[16].id, type: 'lead_created', description: 'Lead imported: Adam Clarke / NorthBridge Capital', createdAt: d(-6) },
+    { userId: maya.id, leadId: createdLeads[17].id, type: 'lead_created', description: 'Lead imported: Clara Wu / ShenZhen Tech', createdAt: d(-6) },
+    { userId: maya.id, leadId: createdLeads[18].id, type: 'email_sent', channel: 'email', description: 'Outreach to Omar Hassan', createdAt: d(-4) },
+    { userId: maya.id, leadId: createdLeads[18].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-2) },
+    { userId: alexLG.id, leadId: createdLeads[19].id, type: 'email_sent', channel: 'email', description: 'Cold email to James Okafor', createdAt: d(-5) },
+    { userId: alexLG.id, leadId: createdLeads[19].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-3) },
+    { userId: alexLG.id, leadId: createdLeads[20].id, type: 'lead_created', description: 'Lead imported: Nia Bartel / BerlinGrowth', createdAt: d(-4) },
+    { userId: alexLG.id, leadId: createdLeads[21].id, type: 'meeting_booked', description: 'Meeting booked with Elena Popov 🎉', createdAt: d(-1) },
+    { userId: priyaLG.id, leadId: createdLeads[22].id, type: 'lead_created', description: 'Lead imported: Raj Mehta / Mumbai StartupLab', createdAt: d(-3) },
+    { userId: priyaLG.id, leadId: createdLeads[23].id, type: 'email_sent', channel: 'email', description: 'Cold email to Sara Lindqvist', createdAt: d(-4) },
+    { userId: priyaLG.id, leadId: createdLeads[23].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-2) },
   ];
 
   for (const act of activitiesData) {
@@ -611,6 +683,7 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   console.log(`   Team Lead:     brandon@telestar.vn / jackie@telestar.vn / vie@telestar.vn`);
   console.log(`                  meixi@telestar.vn / hayden@telestar.vn / selina@telestar.vn / kim@telestar.vn`);
   console.log(`   SDR:           lan.pham@telestar.vn`);
+  console.log(`   Leadgen:       maya@telestar.vn / alex@telestar.vn / priya@telestar.vn`);
 }
 
 main()

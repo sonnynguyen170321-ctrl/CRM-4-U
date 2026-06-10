@@ -6,7 +6,7 @@ export type SessionUser = {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'director' | 'floor_manager' | 'team_lead' | 'sdr';
+  role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
 };
 
 /** Get the authenticated session user from a Server Component or API route. */
@@ -30,7 +30,7 @@ export async function requireRole(
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const hierarchy: SessionUser['role'][] = ['sdr', 'team_lead', 'floor_manager', 'director'];
+  const hierarchy: SessionUser['role'][] = ['sdr', 'leadgen', 'team_lead', 'floor_manager', 'director'];
   const userLevel = hierarchy.indexOf(user.role);
   const requiredLevel = hierarchy.indexOf(minRole);
 
@@ -47,6 +47,7 @@ export function buildRoleScope(user: SessionUser) {
     case 'floor_manager':
       return {}; // sees all
     case 'team_lead':
+    case 'leadgen':
       return {}; // pod scoping (managerId) applied in each query — not handled here
     case 'sdr':
     default:

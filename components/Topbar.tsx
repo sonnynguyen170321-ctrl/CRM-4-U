@@ -40,8 +40,8 @@ type BellItem =
   | ({ kind: 'reminder' } & Reminder);
 
 interface TopbarProps {
-  currentRole: 'director' | 'floor_manager' | 'team_lead' | 'sdr';
-  onRoleChange: (role: 'director' | 'floor_manager' | 'team_lead' | 'sdr') => void;
+  currentRole: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
+  onRoleChange: (role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen') => void;
   onNewAction?: (type: 'lead' | 'task' | 'reminder' | 'campaign') => void;
   isSidebarCollapsed?: boolean;
 }
