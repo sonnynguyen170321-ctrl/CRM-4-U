@@ -203,11 +203,11 @@ async function main() {
   });
 
   // Leadgen team
-  const maya = await prisma.user.create({
+  const dominic = await prisma.user.create({
     data: {
-      email: 'maya@telestar.vn',
+      email: 'dominic@telestar.vn',
       password: pw,
-      firstName: 'Maya',
+      firstName: 'Dominic',
       lastName: '',
       role: 'leadgen',
       managerId: dean.id,
@@ -222,7 +222,7 @@ async function main() {
       firstName: 'Alex',
       lastName: '',
       role: 'leadgen',
-      managerId: maya.id,
+      managerId: dominic.id,
       timezone: 'Europe/London',
     },
   });
@@ -234,7 +234,7 @@ async function main() {
       firstName: 'Priya',
       lastName: '',
       role: 'leadgen',
-      managerId: maya.id,
+      managerId: dominic.id,
       timezone: 'Asia/Kolkata',
     },
   });
@@ -326,7 +326,7 @@ async function main() {
       { campaignId: cmp1.id, userId: david.id },
       { campaignId: cmp2.id, userId: vy.id },
       { campaignId: cmp3.id, userId: carlos.id },
-      { campaignId: cmpLG.id, userId: maya.id },
+      { campaignId: cmpLG.id, userId: dominic.id },
       { campaignId: cmpLG.id, userId: alexLG.id },
       { campaignId: cmpLG.id, userId: priyaLG.id },
     ],
@@ -494,9 +494,9 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     { firstName: 'Sophie', lastName: 'Laurent', company: 'Lyon 3PL', title: 'Operations Director', email: 's.laurent@lyon3pl.fr', stage: 'new', priority: 'cold', assignedTo: carlos.id, campaign: cmp3 },
     { firstName: 'Ahmad', lastName: 'Karimi', company: 'Tehran Trade Hub', title: 'Supply Chain Manager', email: 'a.karimi@tehranhub.ir', stage: 'lost', priority: 'cold', assignedTo: carlos.id, campaign: cmp3 },
     // Leadgen team leads (cmpLG)
-    { firstName: 'Adam', lastName: 'Clarke', company: 'NorthBridge Capital', title: 'CFO', email: 'a.clarke@northbridge.co', stage: 'new', priority: 'hot', assignedTo: maya.id, campaign: cmpLG },
-    { firstName: 'Clara', lastName: 'Wu', company: 'ShenZhen Tech', title: 'VP Sales', email: 'c.wu@shenzhentech.cn', stage: 'new', priority: 'warm', assignedTo: maya.id, campaign: cmpLG },
-    { firstName: 'Omar', lastName: 'Hassan', company: 'Cairo Trade Co', title: 'Director', email: 'o.hassan@cairotrade.eg', stage: 'replied', priority: 'hot', assignedTo: maya.id, campaign: cmpLG },
+    { firstName: 'Adam', lastName: 'Clarke', company: 'NorthBridge Capital', title: 'CFO', email: 'a.clarke@northbridge.co', stage: 'new', priority: 'hot', assignedTo: dominic.id, campaign: cmpLG },
+    { firstName: 'Clara', lastName: 'Wu', company: 'ShenZhen Tech', title: 'VP Sales', email: 'c.wu@shenzhentech.cn', stage: 'new', priority: 'warm', assignedTo: dominic.id, campaign: cmpLG },
+    { firstName: 'Omar', lastName: 'Hassan', company: 'Cairo Trade Co', title: 'Director', email: 'o.hassan@cairotrade.eg', stage: 'replied', priority: 'hot', assignedTo: dominic.id, campaign: cmpLG },
     { firstName: 'James', lastName: 'Okafor', company: 'Lagos Fintech Hub', title: 'CEO', email: 'j.okafor@lagosfintech.ng', stage: 'replied', priority: 'hot', assignedTo: alexLG.id, campaign: cmpLG },
     { firstName: 'Nia', lastName: 'Bartel', company: 'BerlinGrowth GmbH', title: 'Head of Partnerships', email: 'n.bartel@berlingrowth.de', stage: 'new', priority: 'warm', assignedTo: alexLG.id, campaign: cmpLG },
     { firstName: 'Elena', lastName: 'Popov', company: 'Sofia Analytics', title: 'CTO', email: 'e.popov@sofiaanalytics.bg', stage: 'meeting_booked', priority: 'hot', assignedTo: alexLG.id, campaign: cmpLG },
@@ -614,11 +614,11 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     // Carlos
     { userId: carlos.id, leadId: createdLeads[13].id, type: 'email_sent', channel: 'email', description: 'Cold email to Diego Morales', createdAt: d(-5) },
     { userId: carlos.id, leadId: createdLeads[13].id, type: 'linkedin_touch', channel: 'linkedin', description: 'LinkedIn connection request to Diego', metadata: { action: 'Connection Request Sent', response_received: false }, createdAt: d(-3) },
-    // Leadgen team — Maya, Alex, Priya (indices 16-23 in createdLeads)
-    { userId: maya.id, leadId: createdLeads[16].id, type: 'lead_created', description: 'Lead imported: Adam Clarke / NorthBridge Capital', createdAt: d(-6) },
-    { userId: maya.id, leadId: createdLeads[17].id, type: 'lead_created', description: 'Lead imported: Clara Wu / ShenZhen Tech', createdAt: d(-6) },
-    { userId: maya.id, leadId: createdLeads[18].id, type: 'email_sent', channel: 'email', description: 'Outreach to Omar Hassan', createdAt: d(-4) },
-    { userId: maya.id, leadId: createdLeads[18].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-2) },
+    // Leadgen team — Dominic, Alex, Priya (indices 16-23 in createdLeads)
+    { userId: dominic.id, leadId: createdLeads[16].id, type: 'lead_created', description: 'Lead imported: Adam Clarke / NorthBridge Capital', createdAt: d(-6) },
+    { userId: dominic.id, leadId: createdLeads[17].id, type: 'lead_created', description: 'Lead imported: Clara Wu / ShenZhen Tech', createdAt: d(-6) },
+    { userId: dominic.id, leadId: createdLeads[18].id, type: 'email_sent', channel: 'email', description: 'Outreach to Omar Hassan', createdAt: d(-4) },
+    { userId: dominic.id, leadId: createdLeads[18].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-2) },
     { userId: alexLG.id, leadId: createdLeads[19].id, type: 'email_sent', channel: 'email', description: 'Cold email to James Okafor', createdAt: d(-5) },
     { userId: alexLG.id, leadId: createdLeads[19].id, type: 'stage_changed', description: 'Stage: new → replied', metadata: { from: 'new', to: 'replied' }, createdAt: d(-3) },
     { userId: alexLG.id, leadId: createdLeads[20].id, type: 'lead_created', description: 'Lead imported: Nia Bartel / BerlinGrowth', createdAt: d(-4) },
@@ -683,7 +683,7 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   console.log(`   Team Lead:     brandon@telestar.vn / jackie@telestar.vn / vie@telestar.vn`);
   console.log(`                  meixi@telestar.vn / hayden@telestar.vn / selina@telestar.vn / kim@telestar.vn`);
   console.log(`   SDR:           lan.pham@telestar.vn`);
-  console.log(`   Leadgen:       maya@telestar.vn / alex@telestar.vn / priya@telestar.vn`);
+  console.log(`   Leadgen:       dominic@telestar.vn / alex@telestar.vn / priya@telestar.vn`);
 }
 
 main()

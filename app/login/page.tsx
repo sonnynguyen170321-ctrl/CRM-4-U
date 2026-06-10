@@ -11,7 +11,7 @@ const DEMO_ACCOUNTS = [
   { label: 'Floor Manager', name: 'Alayna', email: 'alayna@telestar.vn', role: 'floor_manager' },
   { label: 'Team Lead', name: 'Brandon', email: 'brandon@telestar.vn', role: 'team_lead' },
   { label: 'SDR', name: 'Lan Pham', email: 'lan.pham@telestar.vn', role: 'sdr' },
-  { label: 'Leadgen', name: 'Maya', email: 'maya@telestar.vn', role: 'leadgen' },
+  { label: 'Leadgen', name: 'Dominic', email: 'dominic@telestar.vn', role: 'leadgen' },
 ] as const;
 
 const ROLE_COLORS: Record<string, string> = {
@@ -49,8 +49,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen bg-background flex items-start justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-sm py-8">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-red/10 border border-brand-red/20 mb-4">
