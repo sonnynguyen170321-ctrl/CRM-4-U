@@ -55,7 +55,6 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
   const [bellOpen, setBellOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ leads: any[]; templates: any[] }>({ leads: [], templates: [] });
   const [searchOpen, setSearchOpen] = useState(false);
@@ -361,49 +360,6 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
           )}
         </div>
 
-        {/* Theme Toggler */}
-        <div className="relative">
-          <button
-            onClick={() => setThemeOpen(!themeOpen)}
-            aria-label={`Switch theme (current: ${theme})`}
-            aria-expanded={themeOpen}
-            aria-haspopup="menu"
-            className="p-2 text-text-secondary hover:text-text-primary hover:bg-card-border/30 rounded-lg transition-colors duration-150 focus-ring"
-          >
-            {theme === 'light' ? (
-              <Sun className="w-4 h-4 text-brand-orange" />
-            ) : theme === 'dark' ? (
-              <Moon className="w-4 h-4 text-brand-gold" />
-            ) : (
-              <LayoutGrid className="w-4 h-4 text-brand-red" />
-            )}
-          </button>
-
-          {themeOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setThemeOpen(false)} />
-              <div role="menu" aria-orientation="vertical" className="absolute right-0 mt-2 w-40 bg-card-bg border border-card-border rounded-xl shadow-lg shadow-black/5 z-40 py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-text-muted">
-                  Theme Select
-                </div>
-                {(['mixed', 'dark', 'light'] as Theme[]).map((t) => (
-                  <button
-                    key={t}
-                    role="menuitem"
-                    onClick={() => { setTheme(t); setThemeOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
-                      theme === t ? 'text-brand-red font-semibold bg-brand-red/5' : 'text-text-primary hover:bg-background'
-                    }`}
-                  >
-                    <span className="capitalize">{t} theme</span>
-                    {theme === t && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Notifications Bell */}
         <div className="relative">
           <button
@@ -557,6 +513,24 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
                       <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
                     </span>
                     {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-card-border" />
+                <div className="px-3 py-1 text-xs font-mono uppercase tracking-widest text-text-muted">Appearance</div>
+                {(['mixed', 'dark', 'light'] as Theme[]).map((t) => (
+                  <button
+                    key={t}
+                    role="menuitem"
+                    onClick={() => { setTheme(t); setPersonaOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
+                      theme === t ? 'text-brand-red font-semibold bg-brand-red/5' : 'text-text-primary hover:bg-background'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {t === 'light' ? <Sun className="w-3.5 h-3.5" /> : t === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+                      <span className="capitalize">{t} theme</span>
+                    </span>
+                    {theme === t && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
                   </button>
                 ))}
               </div>

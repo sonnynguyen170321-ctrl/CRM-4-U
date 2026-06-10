@@ -9,9 +9,8 @@ import {
   TableProperties,
   Mail,
   Phone,
-  Clock,
   Upload,
-  MessageSquare,
+  ChevronDown,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useAppContext } from '@/context/AppContext';
@@ -62,6 +61,7 @@ export default function LeadsPage() {
     setViewMode(mode);
     if (typeof window !== 'undefined') localStorage.setItem('crm:defaultLeadView', mode);
   };
+
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,6 +72,7 @@ export default function LeadsPage() {
   const [tagFilter, setTagFilter] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
+  const [showExtraFilters, setShowExtraFilters] = useState(false);
   const [isDraggedOver, setIsDraggedOver] = useState<Record<string, boolean>>({});
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [bulkStage, setBulkStage] = useState('');
@@ -79,7 +80,7 @@ export default function LeadsPage() {
   const [bulkApplying, setBulkApplying] = useState(false);
   const [sequences, setSequences] = useState<{ id: string; name: string }[]>([]);
   const [bulkSeqId, setBulkSeqId] = useState('');
-  const [sortField, setSortField] = useState<'name' | 'company' | 'stage' | 'priority' | 'assignedTo' | 'lastContacted' | 'nextTaskDue' | 'aiScore' | ''>('');
+  const [sortField, setSortField] = useState<'name' | 'company' | 'stage' | 'priority' | 'assignedTo' | 'lastContacted' | ''>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,9 +109,7 @@ export default function LeadsPage() {
     }
   }, [debouncedSearch, priorityFilter, stageFilter, sdrFilter, sourceFilter, tagFilter, dateFrom, dateTo]);
 
-  useEffect(() => {
-    fetchLeads();
-  }, [fetchLeads]);
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   useEffect(() => {
     const handler = () => fetchLeads();
@@ -140,17 +139,12 @@ export default function LeadsPage() {
       .catch(() => {});
   }, [currentRole]);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData('text/plain', id);
-  };
-
+  const handleDragStart = (e: React.DragEvent, id: string) => { e.dataTransfer.setData('text/plain', id); };
   const handleDragEnd = () => setIsDraggedOver({});
-
   const handleDragOver = (e: React.DragEvent, colId: string) => {
     e.preventDefault();
     setIsDraggedOver((prev) => ({ ...prev, [colId]: true }));
   };
-
   const handleDragLeave = (colId: string) => {
     setIsDraggedOver((prev) => ({ ...prev, [colId]: false }));
   };
@@ -159,22 +153,18 @@ export default function LeadsPage() {
     e.preventDefault();
     const leadId = e.dataTransfer.getData('text/plain');
     if (!leadId) return;
-
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.stage === colId) {
       setIsDraggedOver((prev) => ({ ...prev, [colId]: false }));
       return;
     }
-
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: colId } : l)));
     setIsDraggedOver((prev) => ({ ...prev, [colId]: false }));
-
     const res = await fetch(`/api/leads/${leadId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: colId }),
     });
-
     if (res.ok) {
       showToast(`Moved to ${colId.replace(/_/g, ' ')}`, 'success');
     } else {
@@ -255,8 +245,6 @@ export default function LeadsPage() {
     else if (sortField === 'priority') cmp = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
     else if (sortField === 'assignedTo') cmp = (`${a.assignedTo?.firstName ?? ''}${a.assignedTo?.lastName ?? ''}`).localeCompare(`${b.assignedTo?.firstName ?? ''}${b.assignedTo?.lastName ?? ''}`);
     else if (sortField === 'lastContacted') cmp = (a.lastContactedAt ? new Date(a.lastContactedAt).getTime() : 0) - (b.lastContactedAt ? new Date(b.lastContactedAt).getTime() : 0);
-    else if (sortField === 'nextTaskDue') cmp = (a.nextTaskDue ? new Date(a.nextTaskDue).getTime() : Infinity) - (b.nextTaskDue ? new Date(b.nextTaskDue).getTime() : Infinity);
-    else if (sortField === 'aiScore') cmp = (b.aiScore ?? 0) - (a.aiScore ?? 0);
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
@@ -268,9 +256,7 @@ export default function LeadsPage() {
     >
       <span className="flex items-center gap-1">
         {label}
-        <span className="font-mono text-[9px]">
-          {sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
-        </span>
+        <span className="font-mono text-xs">{sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}</span>
       </span>
     </th>
   );
@@ -303,15 +289,20 @@ export default function LeadsPage() {
     }
   };
 
-  const aiScoreBadgeClass = (label?: string) => {
-    switch (label) {
-      case 'hot': return 'bg-brand-red/10 text-brand-red border-brand-red/20';
-      case 'warm': return 'bg-brand-gold/10 text-brand-gold border-brand-gold/20';
-      default: return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-    }
-  };
-
   const sdrUsers = users.filter((u) => u.role === 'sdr');
+
+  const anyExtraFilter = sdrFilter !== 'all' || sourceFilter || tagFilter || dateFrom || dateTo;
+  const extraFilterCount = [sdrFilter !== 'all', !!sourceFilter, !!tagFilter, !!dateFrom, !!dateTo].filter(Boolean).length;
+  const clearAllFilters = () => {
+    setPriorityFilter('all');
+    setStageFilter('all');
+    setSdrFilter('all');
+    setSearchQuery('');
+    setSourceFilter('');
+    setTagFilter('');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   return (
     <div className="space-y-6 flex-1 flex flex-col">
@@ -323,8 +314,8 @@ export default function LeadsPage() {
           </h1>
           <p className="text-xs text-text-secondary mt-0.5">
             {currentRole === 'sdr'
-              ? 'Manage and run cadences for your assigned B2B outreach prospects.'
-              : 'Manager console: Track and scope organization pipelines across campaigns.'}
+              ? 'Your assigned outreach prospects.'
+              : 'Track and manage your team pipeline.'}
           </p>
         </div>
 
@@ -371,26 +362,24 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Filters Toolbar */}
-      <div className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:max-w-xs">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">
-            <Search className="w-3.5 h-3.5" />
-          </span>
-          <input
-            type="text"
-            placeholder="Search name, email, company..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-1.5">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-text-muted" />
-            <span className="text-[10px] uppercase font-bold font-mono text-text-muted">Filters:</span>
+      {/* Filters Toolbar — progressive disclosure */}
+      <div className="glass-card rounded-xl p-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          {/* Search */}
+          <div className="relative w-full sm:max-w-xs flex-shrink-0">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">
+              <Search className="w-3.5 h-3.5" />
+            </span>
+            <input
+              type="text"
+              placeholder="Search name, email, company..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+            />
           </div>
+
+          {/* Always-visible filters */}
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
@@ -404,6 +393,7 @@ export default function LeadsPage() {
             <option value="won">Won</option>
             <option value="lost">Lost</option>
           </select>
+
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
@@ -414,57 +404,81 @@ export default function LeadsPage() {
             <option value="warm">⚡ Warm</option>
             <option value="cold">❄️ Cold</option>
           </select>
-          {currentRole !== 'sdr' && sdrUsers.length > 0 && (
-            <select
-              value={sdrFilter}
-              onChange={(e) => setSdrFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
-            >
-              <option value="all">All Reps</option>
-              {sdrUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName}
-                </option>
-              ))}
-            </select>
-          )}
-          <input
-            type="text"
-            placeholder="Source…"
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-24"
-          />
-          <input
-            type="text"
-            placeholder="Tag…"
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
-            className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-24"
-          />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            title="Created from"
-            className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            title="Created to"
-            className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
-          />
-          {(priorityFilter !== 'all' || stageFilter !== 'all' || sdrFilter !== 'all' || searchQuery || sourceFilter || tagFilter || dateFrom || dateTo) && (
+
+          {/* + Filters toggle */}
+          <button
+            onClick={() => setShowExtraFilters(!showExtraFilters)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              showExtraFilters || anyExtraFilter
+                ? 'bg-brand-red/10 text-brand-red border-brand-red/25'
+                : 'bg-background border-card-border text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Filters
+            {extraFilterCount > 0 && (
+              <span className="ml-0.5 bg-brand-red text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {extraFilterCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3 h-3 transition-transform ${showExtraFilters ? 'rotate-180' : ''}`} />
+          </button>
+
+          {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter) && (
             <button
-              onClick={() => { setPriorityFilter('all'); setStageFilter('all'); setSdrFilter('all'); setSearchQuery(''); setSourceFilter(''); setTagFilter(''); setDateFrom(''); setDateTo(''); }}
-              className="text-[10px] font-mono text-brand-red hover:underline whitespace-nowrap"
+              onClick={clearAllFilters}
+              className="text-xs font-mono text-brand-red hover:underline whitespace-nowrap"
             >
-              Clear Filters
+              Clear all
             </button>
           )}
         </div>
+
+        {/* Extra filters row */}
+        {showExtraFilters && (
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-card-border">
+            {currentRole !== 'sdr' && sdrUsers.length > 0 && (
+              <select
+                value={sdrFilter}
+                onChange={(e) => setSdrFilter(e.target.value)}
+                className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              >
+                <option value="all">All Reps</option>
+                {sdrUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            )}
+            <input
+              type="text"
+              placeholder="Source…"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+            />
+            <input
+              type="text"
+              placeholder="Tag…"
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+            />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              title="Created from"
+              className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              title="Created to"
+              className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+            />
+          </div>
+        )}
       </div>
 
       {/* Leads Content */}
@@ -488,17 +502,15 @@ export default function LeadsPage() {
                 }`}
               >
                 <div className="flex items-center justify-between pb-3 border-b border-card-border/50 mb-3">
-                  <span className="font-display font-extrabold text-xs text-text-primary">
-                    {col.label}
-                  </span>
-                  <span className="bg-card-border/50 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-text-muted">
+                  <span className="font-display font-extrabold text-xs text-text-primary">{col.label}</span>
+                  <span className="bg-card-border/50 px-1.5 py-0.5 rounded text-xs font-mono font-bold text-text-muted">
                     {colLeads.length}
                   </span>
                 </div>
 
                 <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[500px] pr-1">
                   {colLeads.length === 0 ? (
-                    <div className="h-20 border border-dashed border-card-border/60 rounded-xl flex items-center justify-center text-[10px] text-text-muted italic">
+                    <div className="h-20 border border-dashed border-card-border/60 rounded-xl flex items-center justify-center text-xs text-text-muted italic">
                       Empty stage
                     </div>
                   ) : (
@@ -514,63 +526,31 @@ export default function LeadsPage() {
                           draggable
                           onDragStart={(e) => handleDragStart(e, lead.id)}
                           onDragEnd={handleDragEnd}
-                          className={`p-3 glass-card rounded-xl cursor-grab active:cursor-grabbing hover:border-brand-red/50 hover-lift transition-all duration-200 flex flex-col gap-2 relative select-none ${
+                          className={`p-3 glass-card rounded-xl cursor-grab active:cursor-grabbing hover:border-brand-red/50 hover-lift transition-all duration-200 flex flex-col gap-2 relative select-none group ${
                             lead.priority === 'hot' ? 'glow-hot' : ''
                           } ${atRisk ? 'border-amber-500/40' : ''}`}
                         >
                           {atRisk && (
-                            <span className="absolute top-2 right-2 text-[8px] font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                              ⚠ {daysOverdue}d overdue
+                            <span className="absolute top-2 right-2 text-xs font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded">
+                              ⚠ {daysOverdue}d
                             </span>
                           )}
                           <div>
-                            <p className="font-display font-extrabold text-xs text-text-primary pr-10">
+                            <p className="font-display font-extrabold text-sm text-text-primary pr-10 leading-snug">
                               {lead.firstName} {lead.lastName}
                             </p>
-                            <p className="text-[10px] text-text-muted truncate mt-0.5">
-                              {lead.title} at {lead.company}
-                            </p>
+                            <p className="text-xs text-text-muted truncate mt-0.5">{lead.company}</p>
                           </div>
-                          <div className="flex items-center justify-between pt-1 border-t border-card-border/30 mt-1">
-                            <div className="flex items-center gap-1">
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${priorityBadgeClass(lead.priority)}`}
-                              >
-                                {lead.priority}
-                              </span>
-                              {lead.aiScore !== undefined && (
-                                <span
-                                  title={`AI Score: ${lead.aiScore}/100`}
-                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${aiScoreBadgeClass(lead.aiLabel)}`}
-                                >
-                                  AI {lead.aiScore}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {lead.nextTaskType && (() => {
-                                const icons: Record<string, React.ReactNode> = {
-                                  email: <Mail className="w-2.5 h-2.5 text-blue-500" />,
-                                  phone: <Phone className="w-2.5 h-2.5 text-green-500" />,
-                                  linkedin: <MessageSquare className="w-2.5 h-2.5 text-indigo-500" />,
-                                  whatsapp: <MessageSquare className="w-2.5 h-2.5 text-teal-500" />,
-                                };
-                                return icons[lead.nextTaskType] ? (
-                                  <span title={`Next: ${lead.nextTaskType}`} className="flex items-center">
-                                    {icons[lead.nextTaskType]}
-                                  </span>
-                                ) : null;
-                              })()}
-                              <span className="text-[9px] text-text-muted font-mono flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" />
-                                {lead.lastContactedAt
-                                  ? new Date(lead.lastContactedAt).toLocaleDateString([], {
-                                      month: 'short',
-                                      day: 'numeric',
-                                    })
-                                  : 'No Touch'}
-                              </span>
-                            </div>
+                          <div className="flex items-center justify-between pt-1.5 border-t border-card-border/30">
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${priorityBadgeClass(lead.priority)}`}>
+                              {lead.priority}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.id); }}
+                              className="opacity-0 group-hover:opacity-100 text-xs font-semibold text-text-muted hover:text-brand-red transition-all px-2 py-0.5 rounded border border-card-border hover:border-brand-red/30"
+                            >
+                              View
+                            </button>
                           </div>
                         </div>
                       );
@@ -593,8 +573,8 @@ export default function LeadsPage() {
                 className="bg-background border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
               >
                 <option value="">Change Stage…</option>
-                {['new','sequence_active','replied','meeting_booked','won','lost'].map((s) => (
-                  <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
+                {['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost'].map((s) => (
+                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                 ))}
               </select>
               {users.length > 0 && (
@@ -624,13 +604,15 @@ export default function LeadsPage() {
               >
                 {bulkApplying ? 'Applying…' : 'Apply'}
               </button>
-              <button onClick={() => setSelectedLeads(new Set())} className="text-text-muted hover:text-text-primary font-mono">Clear</button>
+              <button onClick={() => setSelectedLeads(new Set())} className="text-text-muted hover:text-text-primary font-mono">
+                Clear
+              </button>
             </div>
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+                <tr className="bg-background/50 border-b border-card-border text-xs uppercase font-bold font-mono tracking-wider text-text-muted">
                   <th className="p-3 w-8">
                     <input
                       type="checkbox"
@@ -642,20 +624,17 @@ export default function LeadsPage() {
                   </th>
                   <SortTh field="name" label="Name" />
                   <SortTh field="company" label="Company" />
-                  <th className="p-3">Title</th>
-                  <SortTh field="stage" label="Pipeline Stage" />
+                  <SortTh field="stage" label="Stage" />
                   <SortTh field="priority" label="Priority" />
-                  <SortTh field="aiScore" label="AI Score" />
+                  <SortTh field="assignedTo" label="Assigned" />
                   <SortTh field="lastContacted" label="Last Contact" />
-                  <SortTh field="nextTaskDue" label="Next Task" />
-                  <SortTh field="assignedTo" label="Assigned SDR" />
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border text-text-secondary">
                 {leads.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="p-8 text-center text-text-muted">
+                    <td colSpan={8} className="p-8 text-center text-text-muted">
                       No leads match the active search or filters.
                     </td>
                   </tr>
@@ -675,75 +654,42 @@ export default function LeadsPage() {
                           aria-label={`Select ${lead.firstName} ${lead.lastName}`}
                         />
                       </td>
-                      <td className="p-3 font-semibold text-text-primary">
+                      <td className="p-3 font-semibold text-text-primary whitespace-nowrap">
                         {lead.firstName} {lead.lastName}
                       </td>
                       <td className="p-3 font-semibold">{lead.company}</td>
-                      <td className="p-3 truncate max-w-[120px]">{lead.title}</td>
                       <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[9px] font-bold border ${stageBadgeClass(lead.stage)}`}
-                        >
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${stageBadgeClass(lead.stage)}`}>
                           {lead.stage.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${priorityBadgeClass(lead.priority)}`}
-                        >
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${priorityBadgeClass(lead.priority)}`}>
                           {lead.priority}
                         </span>
                       </td>
-                      <td className="p-3">
-                        {lead.aiScore !== undefined ? (
-                          <span
-                            title={lead.aiRecommendation}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${aiScoreBadgeClass(lead.aiLabel)}`}
-                          >
-                            AI {lead.aiScore}
-                          </span>
-                        ) : <span className="text-text-muted/50 italic">—</span>}
+                      <td className="p-3 text-xs text-text-muted">
+                        {lead.assignedTo
+                          ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName?.[0] ?? ''}.`
+                          : <span className="text-text-muted/50 italic">Unassigned</span>}
                       </td>
-                      <td className="p-3 font-mono text-[10px] text-text-muted">
+                      <td className="p-3 font-mono text-xs text-text-muted">
                         {lead.lastContactedAt
                           ? new Date(lead.lastContactedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
                           : <span className="text-text-muted/50 italic">—</span>}
                       </td>
-                      <td className="p-3 font-mono text-[10px]">
-                        {lead.nextTaskDue ? (
-                          <span className={new Date(lead.nextTaskDue) < new Date() ? 'text-brand-red font-bold' : 'text-text-muted'}>
-                            {new Date(lead.nextTaskDue).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                          </span>
-                        ) : <span className="text-text-muted/50 italic">—</span>}
-                      </td>
-                      <td className="p-3">
-                        {lead.assignedTo
-                          ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName?.[0] ?? ''}.`
-                          : 'Unassigned'}
-                      </td>
                       <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1.5 justify-end">
-                          <a
-                            href={`mailto:${lead.email}`}
-                            className="p-1 hover:bg-card-border rounded text-blue-500"
-                          >
+                          <a href={`mailto:${lead.email}`} className="p-1 hover:bg-card-border rounded text-blue-500" title="Send email">
                             <Mail className="w-3.5 h-3.5" />
                           </a>
                           {lead.phone && (
-                            <a
-                              href={`tel:${lead.phone}`}
-                              className="p-1 hover:bg-card-border rounded text-green-500"
-                            >
+                            <a href={`tel:${lead.phone}`} className="p-1 hover:bg-card-border rounded text-green-500" title="Call">
                               <Phone className="w-3.5 h-3.5" />
                             </a>
                           )}
                           {lead.linkedIn && (
-                            <a
-                              href={lead.linkedIn}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1 hover:bg-card-border rounded text-indigo-500"
-                            >
+                            <a href={lead.linkedIn} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
                               <Linkedin className="w-3.5 h-3.5" />
                             </a>
                           )}
