@@ -43,10 +43,9 @@ interface TopbarProps {
   currentRole: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
   onRoleChange: (role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen') => void;
   onNewAction?: (type: 'lead' | 'task' | 'reminder' | 'campaign') => void;
-  isSidebarCollapsed?: boolean;
 }
 
-export default function Topbar({ currentRole, onRoleChange, onNewAction, isSidebarCollapsed = false }: TopbarProps) {
+export default function Topbar({ currentRole, onRoleChange, onNewAction }: TopbarProps) {
   const { theme, setTheme } = useTheme();
   const { currentUser } = useAppContext();
   const router = useRouter();
@@ -222,11 +221,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction, isSideb
 
   return (
     <header
-      className={`fixed top-0 right-0 z-10 flex items-center justify-between px-6 py-3 glass-topbar h-16 transition-all duration-300 ${
-        isSidebarCollapsed
-          ? 'left-0 pl-16'
-          : 'xl:left-60 lg:left-16 md:left-16 sm:left-16 left-16'
-      }`}
+      className="fixed top-0 right-0 z-10 flex items-center justify-between px-6 py-3 glass-topbar h-16 xl:left-52 left-14"
     >
       {/* Global Search */}
       <div className="flex-1 max-w-md relative" ref={searchRef}>

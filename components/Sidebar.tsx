@@ -10,18 +10,15 @@ import {
   FileText,
   BarChart3,
   Settings,
-  ChevronLeft,
   Target,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
 interface SidebarProps {
   userRole?: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
-  isCollapsed?: boolean;
-  onToggle?: () => void;
 }
 
-export default function Sidebar({ userRole = 'sdr', isCollapsed = false, onToggle }: SidebarProps) {
+export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
   const pathname = usePathname();
   const { currentUser } = useAppContext();
 
@@ -38,24 +35,9 @@ export default function Sidebar({ userRole = 'sdr', isCollapsed = false, onToggl
   ];
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-20 flex flex-col glass-sidebar border-r border-sidebar-border text-sidebar-text transition-all duration-300 relative ${
-      isCollapsed 
-        ? 'w-0 overflow-hidden border-r-0 opacity-0 pointer-events-none' 
-        : 'w-16 xl:w-60'
-    }`}>
-      {/* Collapse Trigger Button inside the sidebar */}
-      {!isCollapsed && onToggle && (
-        <button
-          onClick={onToggle}
-          aria-label="Collapse sidebar"
-          className="absolute top-4.5 -right-3 w-6.5 h-6.5 bg-sidebar-bg border border-sidebar-border rounded-full flex items-center justify-center text-sidebar-text-muted hover:text-brand-red transition-all shadow-md z-30 pointer-events-auto cursor-pointer focus-ring"
-        >
-          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-        </button>
-      )}
-
+    <aside className="fixed inset-y-0 left-0 z-20 flex flex-col glass-sidebar border-r border-sidebar-border text-sidebar-text w-14 xl:w-52">
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border h-16">
+      <div className="flex items-center gap-3 px-3 py-5 border-b border-sidebar-border h-16">
         <div className="flex items-center justify-center bg-brand-red/10 rounded-lg p-1.5 text-brand-red logo-glow">
           {/* Fiery Star Custom SVG/Icon */}
           <svg 
@@ -79,7 +61,7 @@ export default function Sidebar({ userRole = 'sdr', isCollapsed = false, onToggl
           </svg>
         </div>
         <span className="hidden xl:inline-block font-display font-extrabold text-base tracking-wide bg-gradient-to-r from-brand-red via-brand-orange to-brand-gold bg-clip-text text-transparent">
-          TELESTAR <span className="text-xs font-mono text-sidebar-text-muted font-normal ml-0.5">SDR</span>
+          TELESTAR
         </span>
       </div>
 

@@ -35,8 +35,8 @@ body:not([data-theme]) {
   --foreground: #111111;
   --card-bg: #FFFFFF;
   --card-border: #E5E7EB;
-  --sidebar-bg: #0A0A0A;
-  --sidebar-border: #1A1A1A;
+  --sidebar-bg: #151C2C;
+  --sidebar-border: #1F2A40;
   --sidebar-text: #E5E7EB;
   --sidebar-text-muted: #8E9196;
   --text-primary: #111111;
@@ -55,8 +55,8 @@ body[data-theme="dark"] {
   --foreground: #F3F4F6;
   --card-bg: #0D0D0D;
   --card-border: #1F2937;
-  --sidebar-bg: #0A0A0A;
-  --sidebar-border: #1A1A1A;
+  --sidebar-bg: #151C2C;
+  --sidebar-border: #1F2A40;
   --sidebar-text: #F3F4F6;
   --sidebar-text-muted: #6B7280;
   --text-primary: #F3F4F6;
