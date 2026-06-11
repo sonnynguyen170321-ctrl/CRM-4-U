@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   Target,
+  TrendingUp,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
@@ -26,6 +27,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Leads', href: '/leads', icon: Users },
     { name: 'Sequences', href: '/sequences', icon: Repeat },
+    { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },
     { name: 'Templates', href: '/templates', icon: FileText },
     // Leadgen gets their own view instead of Team View
     ...(userRole === 'leadgen' ? [{ name: 'Leadgen', href: '/leadgen', icon: Target }] : []),

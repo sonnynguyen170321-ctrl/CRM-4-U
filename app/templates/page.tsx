@@ -25,6 +25,15 @@ interface Template {
   updatedAt: string;
 }
 
+interface AbTestVariant {
+  id: string;
+  version: string;
+  subject: string | null;
+  body: string | null;
+  sentCount: number;
+  replyCount: number;
+}
+
 const MERGE_FIELDS = ['firstName', 'lastName', 'company', 'title', 'sdrName', 'sdrTitle'];
 
 const PREVIEW_DATA: Record<string, string> = {
@@ -51,6 +60,9 @@ export default function TemplatesPage() {
   const [filterChannel, setFilterChannel] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [abVariants, setAbVariants] = useState<AbTestVariant[]>([]);
+  const [abOpen, setAbOpen] = useState(false);
+  const [creatingAb, setCreatingAb] = useState(false);
 
   const loadTemplates = useCallback(async () => {
     const res = await fetch('/api/templates');
@@ -64,6 +76,16 @@ export default function TemplatesPage() {
     loadTemplates();
   }, [loadTemplates]);
 
+  const loadAbVariants = useCallback(async (templateId: string) => {
+    const res = await fetch(`/api/templates/${templateId}/ab-test`);
+    if (res.ok) {
+      const data = await res.json();
+      setAbVariants(Array.isArray(data) ? data : []);
+    } else {
+      setAbVariants([]);
+    }
+  }, []);
+
   const handleSelectTemplate = (temp: Template) => {
     setSelectedTemp(temp);
     setName(temp.name);
@@ -72,6 +94,8 @@ export default function TemplatesPage() {
     setBody(temp.body);
     setCategory(temp.category);
     setActivePane('edit');
+    setAbOpen(false);
+    loadAbVariants(temp.id);
   };
 
   const handleInsertMergeField = (field: string) => {
@@ -122,6 +146,42 @@ export default function TemplatesPage() {
       showToast('Template created', 'success');
     } else {
       showToast('Failed to create template', 'error');
+    }
+  };
+
+  const handleCreateAbVariant = async () => {
+    if (!selectedTemp || creatingAb) return;
+    setCreatingAb(true);
+    const res = await fetch(`/api/templates/${selectedTemp.id}/ab-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject: selectedTemp.channel === 'email' ? subject : null,
+        body,
+      }),
+    });
+    setCreatingAb(false);
+    if (res.ok) {
+      const variant = await res.json();
+      setAbVariants((prev) => [...prev, variant]);
+      showToast('B variant created', 'success');
+    } else {
+      showToast('Failed to create B variant', 'error');
+    }
+  };
+
+  const handleRemoveAbVariant = async (variantId: string) => {
+    if (!selectedTemp) return;
+    const res = await fetch(`/api/templates/${selectedTemp.id}/ab-test`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variantId }),
+    });
+    if (res.ok) {
+      setAbVariants((prev) => prev.filter((v) => v.id !== variantId));
+      showToast('B variant removed', 'success');
+    } else {
+      showToast('Failed to remove B variant', 'error');
     }
   };
 
@@ -368,6 +428,69 @@ export default function TemplatesPage() {
                         />
                       </div>
                     )}
+
+                    {/* A/B Testing */}
+                    <div className="border border-card-border rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setAbOpen(!abOpen)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-background/50 hover:bg-background/80 transition-colors"
+                      >
+                        <span className="text-[10px] font-bold font-mono text-text-muted uppercase flex items-center gap-1.5">
+                          <span className="text-xs">A/B</span> Testing
+                          {abVariants.length > 0 && (
+                            <span className="bg-brand-red/10 text-brand-red text-[8px] font-extrabold px-1.5 py-0.5 rounded-full">
+                              {abVariants.length} variant{abVariants.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </span>
+                        <span className={`text-text-muted transition-transform ${abOpen ? 'rotate-180' : ''}`}>▼</span>
+                      </button>
+                      {abOpen && (
+                        <div className="p-3 border-t border-card-border space-y-3">
+                          <p className="text-[10px] text-text-muted leading-relaxed">
+                            Create a B variant to A/B test subject lines and body copy. Variants are randomly assigned to leads when the sequence runs.
+                          </p>
+                          {abVariants.length === 0 && (
+                            <button
+                              onClick={handleCreateAbVariant}
+                              disabled={creatingAb}
+                              className="px-2.5 py-1.5 bg-background border border-card-border hover:border-brand-red text-text-secondary hover:text-brand-red text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {creatingAb ? 'Creating...' : 'Create B Variant from Current'}
+                            </button>
+                          )}
+                          {abVariants.map((v) => (
+                            <div
+                              key={v.id}
+                              className="bg-background/50 border border-card-border rounded-lg p-3 space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold font-mono text-brand-red uppercase">
+                                  Variant {v.version}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveAbVariant(v.id)}
+                                  className="p-1 hover:bg-brand-red/10 text-text-muted hover:text-brand-red rounded transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {v.subject !== null && (
+                                <p className="text-[10px] text-text-muted">
+                                  <span className="font-semibold">Subject:</span> {v.subject || '(none)'}
+                                </p>
+                              )}
+                              <p className="text-[10px] text-text-muted line-clamp-2">
+                                <span className="font-semibold">Body:</span> {v.body || '(none)'}
+                              </p>
+                              <p className="text-[9px] text-text-muted">
+                                Sent: {v.sentCount} | Replies: {v.replyCount}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">

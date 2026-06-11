@@ -4,24 +4,14 @@ import { getSessionUser } from '@/lib/auth';
 import { EmailService } from '@/lib/email/EmailService';
 import { renderTemplate } from '@/lib/templates/render';
 import { advanceSequence } from '@/lib/sequences/engine';
+import { scheduleSmartSends, isWithinBusinessHours, distributeSends } from '@/lib/sequences/smartSend';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const BATCH_SIZE = 25;
 const LOCK_STALE_MS = 10 * 60 * 1000;
-const DAILY_AUTO_SEND_CAP = 50; // per email account — deliverability guard
+const DAILY_AUTO_SEND_CAP = 50;
 
-/**
- * Sequence auto-send engine. Sends due email steps marked autoComplete and
- * advances those leads to their next step. Triggered by Vercel Cron
- * (vercel.json) and, as a fallback for plans with daily-only crons, by a
- * throttled ping from the app shell while users are online.
- *
- * Concurrency: the Neon HTTP driver has no interactive transactions, so each
- * task is claimed with a compare-and-swap on Task.lockedAt before sending.
- * Double-firing the route cannot double-send.
- */
 export async function GET(req: NextRequest) {
   const authorized =
     (process.env.CRON_SECRET &&
@@ -35,19 +25,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ disabled: true, sent: 0 });
   }
 
+  // Distribute send windows for all active accounts
+  const activeAccounts = await prisma.emailAccount.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  for (const acc of activeAccounts) {
+    await distributeSends(acc.id);
+  }
+
+  // Run smart send engine
+  const result = await scheduleSmartSends();
+
+  // Fallback: process non-autoComplete tasks (manual email tasks)
   const now = new Date();
   const lockCutoff = new Date(now.getTime() - LOCK_STALE_MS);
 
-  const dueTasks = await prisma.task.findMany({
+  const manualTasks = await prisma.task.findMany({
     where: {
       status: 'pending',
       type: 'email',
-      sequenceId: { not: null },
+      sequenceId: null,
       dueDate: { lte: now },
       OR: [{ lockedAt: null }, { lockedAt: { lt: lockCutoff } }],
     },
     orderBy: { dueDate: 'asc' },
-    take: BATCH_SIZE,
+    take: 10,
     include: {
       lead: {
         include: { assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } } },
@@ -55,133 +58,38 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  let sent = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  for (const task of dueTasks) {
+  for (const task of manualTasks) {
     try {
-      const { lead } = task;
-
-      // Step must exist, be an autoComplete email step, with a template
-      const step = await prisma.sequenceStep.findFirst({
-        where: { sequenceId: task.sequenceId!, order: task.sequenceStep ?? -1 },
-        include: { template: true },
-      });
-      const eligible =
-        step?.autoComplete &&
-        step.channel === 'email' &&
-        step.template &&
-        lead.sequenceId === task.sequenceId &&
-        lead.sequenceStatus === 'active' &&
-        !lead.emailInvalid &&
-        lead.email;
-      if (!eligible) {
-        skipped++; // stays a normal manual task on the SDR's board
-        continue;
-      }
-
       const account = await prisma.emailAccount.findFirst({
-        where: { userId: lead.assignedToId, isActive: true },
+        where: { userId: task.lead.assignedToId, isActive: true },
       });
-      if (!account) {
-        skipped++;
-        continue;
-      }
+      if (!account) continue;
 
-      // Per-account daily cap
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
-      const sentToday = await prisma.activity.count({
-        where: {
-          type: 'email_sent',
-          createdAt: { gte: todayStart },
-          AND: [
-            { metadata: { path: ['auto'], equals: true } },
-            { metadata: { path: ['accountId'], equals: account.id } },
-          ],
-        },
-      });
-      if (sentToday >= DAILY_AUTO_SEND_CAP) {
-        skipped++;
-        continue;
-      }
-
-      // Claim the task (CAS) — exactly one runner may proceed
       const claimed = await prisma.task.updateMany({
         where: { id: task.id, status: 'pending', lockedAt: task.lockedAt },
         data: { lockedAt: now },
       });
-      if (claimed.count !== 1) {
-        skipped++;
-        continue;
-      }
+      if (claimed.count !== 1) continue;
 
-      const subject = renderTemplate(step.template!.subject ?? '', lead, lead.assignedTo);
-      const body = renderTemplate(step.template!.body, lead, lead.assignedTo);
-
-      try {
-        await EmailService.fromAccount(account).send({
-          from: account.email,
-          to: lead.email,
-          subject,
-          text: body,
-          html: body.replace(/\n/g, '<br>'),
-        });
-      } catch (sendErr) {
-        // Release the claim so the next run retries; tell the SDR once a day
-        await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
-        const alreadyNotified = await prisma.notification.findFirst({
-          where: {
-            userId: lead.assignedToId,
-            type: 'auto_send_failed',
-            linkTo: `/leads/${lead.id}`,
-            createdAt: { gte: todayStart },
-          },
-        });
-        if (!alreadyNotified) {
-          await prisma.notification.create({
-            data: {
-              userId: lead.assignedToId,
-              type: 'auto_send_failed',
-              title: 'Auto-send Failed',
-              text: `Step ${task.sequenceStep} email to ${lead.firstName} ${lead.lastName} failed to send. Check your email connection in Settings.`,
-              linkTo: `/leads/${lead.id}`,
-            },
-          });
-        }
-        console.error(`[sequence-engine] send failed for task ${task.id}:`, sendErr);
-        errors.push(task.id);
-        continue;
-      }
+      await EmailService.fromAccount(account).send({
+        from: account.email,
+        to: task.lead.email,
+        subject: task.title,
+        text: task.description ?? '',
+      });
 
       await prisma.task.update({
         where: { id: task.id },
         data: { status: 'completed', completedAt: new Date() },
       });
-      await prisma.activity.create({
-        data: {
-          userId: lead.assignedToId,
-          leadId: lead.id,
-          type: 'email_sent',
-          channel: 'email',
-          description: `Auto-sent sequence email to ${lead.email}`,
-          metadata: { auto: true, accountId: account.id, subject, taskId: task.id },
-        },
-      });
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { lastContactedAt: new Date() },
-      });
-      await advanceSequence(task, lead.assignedToId);
-      sent++;
-    } catch (err) {
-      console.error(`[sequence-engine] task ${task.id} failed:`, err);
-      errors.push(task.id);
+      result.sent++;
+    } catch {
+      await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
+      result.errors.push(task.id);
     }
   }
 
-  // Daily notifications (idempotent — one per recipient per day, SKILL.md §23)
+  // Daily notifications
   let notified = 0;
   try {
     notified = await createDailyNotifications(now);
@@ -189,21 +97,21 @@ export async function GET(req: NextRequest) {
     console.error('[sequence-engine] daily notifications failed:', err);
   }
 
-  return NextResponse.json({ processed: dueTasks.length, sent, skipped, errors: errors.length, notified });
+  return NextResponse.json({
+    processed: (result.sent + result.skipped + result.errors.length + manualTasks.length),
+    sent: result.sent,
+    skipped: result.skipped,
+    errors: result.errors.length,
+    notified,
+  });
 }
 
-/**
- * "Sequence step due today" (per SDR) and "SDR overdue alert" (to managers).
- * Idempotency follows the /api/notifications/check pattern: skip if a
- * notification of the same type was already created today for the recipient.
- */
 async function createDailyNotifications(now: Date): Promise<number> {
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart.getTime() + 86400000);
   let created = 0;
 
-  // Sequence steps due today, grouped per SDR
   const dueSteps = await prisma.task.findMany({
     where: {
       status: 'pending',
@@ -233,7 +141,6 @@ async function createDailyNotifications(now: Date): Promise<number> {
     created++;
   }
 
-  // SDRs with overdue tasks → alert their manager (and the manager's manager)
   const overdue = await prisma.task.groupBy({
     by: ['userId'],
     _count: { id: true },

@@ -45,3 +45,6 @@ next-env.d.ts
 .claude/worktrees/
 
 .vercel
+
+# ECC Installer Repository
+Claude-Everything-setup/

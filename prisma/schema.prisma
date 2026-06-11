@@ -194,12 +194,16 @@ model Lead {
   sequence        Sequence? @relation(fields: [sequenceId], references: [id])
   sequenceStep    Int?
   sequenceStatus  SequenceEnrollmentStatus?
+  timezone        String?
   emailInvalid    Boolean   @default(false)
   source          String?
   tags            String[]
   priority        Priority  @default(warm)
   lastContactedAt DateTime?
   nextTaskDue     DateTime?
+  emailSentCount  Int       @default(0)
+  emailOpenCount  Int       @default(0)
+  emailReplyCount Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -294,6 +298,21 @@ model Template {
   updatedAt   DateTime @updatedAt
 
   sequenceSteps SequenceStep[]
+  abVariants    AbTestVariant[]
+}
+
+model AbTestVariant {
+  id         String   @id @default(cuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  subject    String?
+  body       String?
+  version    String   // "A" | "B"
+  sentCount  Int      @default(0)
+  replyCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([templateId])
 }
 
 // ─── Notes ───────────────────────────────────────────────────────────────────
@@ -367,11 +386,14 @@ model EmailAccount {
   smtpServer   String?
   smtpPort     Int?
   encPassword  String?       @db.Text
-  isActive     Boolean       @default(true)
-  lastSyncAt   DateTime?
-  syncCursor   String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  isActive         Boolean       @default(true)
+  lastSyncAt       DateTime?
+  syncCursor       String?
+  dailySendCount   Int           @default(0)
+  dailySendDate    DateTime?
+  hourlySendWindow Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([userId])
 }
