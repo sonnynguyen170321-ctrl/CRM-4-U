@@ -104,7 +104,7 @@ function getPenaltyScore(lead: LeadScoringInput): number {
   return penalty;
 }
 
-function generateInsights(lead: LeadScoringInput, score: number): string[] {
+function generateInsights(lead: LeadScoringInput, _score: number): string[] {
   const insights: string[] = [];
   const stage = lead.stage.replace(/_/g, ' ');
   insights.push(`Stage: ${stage} (${getStageScore(lead.stage)} pts)`);
@@ -141,7 +141,7 @@ function generateInsights(lead: LeadScoringInput, score: number): string[] {
   return insights;
 }
 
-function generateRecommendation(score: number, stage: string, priority: string): string {
+function generateRecommendation(score: number, stage: string, _priority: string): string {
   if (stage === 'won') return 'Lead converted. Move to account management.';
   if (stage === 'lost') return 'Lead lost. Review notes for future re-engagement.';
 

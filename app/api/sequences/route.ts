@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { createSequenceSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api/errors';
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  const showArchived = new URL(req.url).searchParams.get('archived') === '1';
+
   const sequences = await prisma.sequence.findMany({
+    where: { isArchived: showArchived },
     include: {
       steps: { orderBy: { order: 'asc' } },
       createdBy: { select: { id: true, firstName: true, lastName: true } },
@@ -26,28 +32,34 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
+  const parsed = await parseBody(req, createSequenceSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
-  const sequence = await prisma.sequence.create({
-    data: {
-      name: body.name,
-      description: body.description,
-      isActive: body.isActive ?? true,
-      createdById: user.id,
-      steps: {
-        create: (body.steps ?? []).map((step: any, idx: number) => ({
-          order: step.order ?? idx + 1,
-          channel: step.channel,
-          delayDays: step.delayDays ?? 1,
-          delayHours: step.delayHours ?? 0,
-          templateId: step.templateId ?? null,
-          instructions: step.instructions,
-          autoComplete: step.autoComplete ?? false,
-        })),
+  try {
+    const sequence = await prisma.sequence.create({
+      data: {
+        name: body.name,
+        description: body.description,
+        isActive: body.isActive ?? true,
+        createdById: user.id,
+        steps: {
+          create: (body.steps ?? []).map((step, idx) => ({
+            order: step.order ?? idx + 1,
+            channel: step.channel,
+            delayDays: step.delayDays ?? 1,
+            delayHours: step.delayHours ?? 0,
+            templateId: step.templateId ?? null,
+            instructions: step.instructions,
+            autoComplete: step.autoComplete ?? false,
+          })),
+        },
       },
-    },
-    include: { steps: { orderBy: { order: 'asc' } } },
-  });
+      include: { steps: { orderBy: { order: 'asc' } } },
+    });
 
-  return NextResponse.json(sequence, { status: 201 });
+    return NextResponse.json(sequence, { status: 201 });
+  } catch (err) {
+    return handleApiError('api/sequences POST', err);
+  }
 }

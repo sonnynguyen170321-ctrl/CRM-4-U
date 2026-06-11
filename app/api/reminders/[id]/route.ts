@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { updateReminderSchema } from '@/lib/validation/schemas';
 
 export async function PUT(
   req: NextRequest,
@@ -19,14 +21,16 @@ export async function PUT(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = await req.json();
+  const parsed = await parseBody(req, updateReminderSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const updated = await prisma.reminder.update({
     where: { id },
     data: {
       ...(body.isDismissed !== undefined && { isDismissed: body.isDismissed }),
       ...(body.text !== undefined && { text: body.text }),
-      ...(body.dueAt !== undefined && { dueAt: new Date(body.dueAt) }),
+      ...(body.dueAt !== undefined && { dueAt: body.dueAt }),
     },
   });
 

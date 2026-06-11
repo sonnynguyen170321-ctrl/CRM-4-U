@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export type SessionUser = {
   id: string;
@@ -38,6 +39,30 @@ export async function requireRole(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   return user;
+}
+
+export { computeVisibleUserIds } from '@/lib/podScoping';
+import { computeVisibleUserIds } from '@/lib/podScoping';
+
+/**
+ * The user IDs this viewer may see, or `null` for unrestricted.
+ * Use in queries as: `userId: { in: ids }` / `assignedToId: { in: ids }`.
+ */
+export async function getVisibleUserIds(user: SessionUser): Promise<string[] | null> {
+  if (user.role === 'director') return null;
+  if (user.role === 'sdr') return [user.id];
+  const allUsers = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, role: true, managerId: true },
+  });
+  return computeVisibleUserIds(allUsers, user);
+}
+
+/** True when the viewer is allowed to see/modify data owned by `ownerId`. */
+export async function canAccessUser(viewer: SessionUser, ownerId: string): Promise<boolean> {
+  if (viewer.id === ownerId) return true;
+  const visible = await getVisibleUserIds(viewer);
+  return visible === null || visible.includes(ownerId);
 }
 
 /** Build a Prisma `where` clause that scopes leads/tasks to the user's role. */

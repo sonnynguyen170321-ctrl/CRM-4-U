@@ -151,7 +151,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         .then((data) => setUsers(Array.isArray(data) ? data : []))
         .catch(() => {});
     }
-  }, [leadId]);
+  }, [leadId, showToast, users.length]);
 
   const timelineItems = React.useMemo(() => {
     interface TimelineItem {

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
-import type { EmailAdapter, SendEmailOptions } from '../EmailService';
+import { ImapFlow } from 'imapflow';
+import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
 
 interface ImapConfig {
   email: string;
@@ -41,6 +42,48 @@ export class ImapAdapter implements EmailAdapter {
       text: options.text,
       replyTo: options.replyTo,
     });
+  }
+
+  /** Fetch inbox messages received since `since` via IMAP (envelopes only). */
+  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
+    if (!this.config.imapServer) return [];
+
+    const client = new ImapFlow({
+      host: this.config.imapServer,
+      port: this.config.imapPort ?? 993,
+      secure: (this.config.imapPort ?? 993) === 993,
+      auth: { user: this.config.email, pass: this.config.password },
+      socketTimeout: 30_000,
+      logger: false,
+      tls: { rejectUnauthorized: process.env.MAIL_ALLOW_SELF_SIGNED !== 'true' },
+    });
+
+    await client.connect();
+    const messages: InboxMessage[] = [];
+    try {
+      const lock = await client.getMailboxLock('INBOX');
+      try {
+        const uids = ((await client.search({ since })) || []) as number[];
+        // Cap per run; newest last in UID order, keep the most recent 50
+        const recent = uids.slice(-50);
+        if (recent.length > 0) {
+          for await (const msg of client.fetch(recent, { envelope: true })) {
+            const from = msg.envelope?.from?.[0];
+            messages.push({
+              fromEmail: (from?.address ?? '').toLowerCase(),
+              subject: msg.envelope?.subject ?? '',
+              date: msg.envelope?.date ?? new Date(),
+              failedRecipient: null,
+            });
+          }
+        }
+      } finally {
+        lock.release();
+      }
+    } finally {
+      await client.logout().catch(() => {});
+    }
+    return messages;
   }
 
   /** Verify the SMTP connection credentials. Returns true if valid. */

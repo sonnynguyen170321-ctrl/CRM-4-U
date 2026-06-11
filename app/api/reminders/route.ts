@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { createReminderSchema } from '@/lib/validation/schemas';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -28,13 +30,15 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
+  const parsed = await parseBody(req, createReminderSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const reminder = await prisma.reminder.create({
     data: {
       userId: user.id,
       text: body.text,
-      dueAt: new Date(body.dueAt),
+      dueAt: body.dueAt,
       leadId: body.leadId ?? null,
       isDismissed: false,
     },

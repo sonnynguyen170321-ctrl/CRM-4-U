@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireRole, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { createCampaignSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -36,7 +39,9 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
+  const parsed = await parseBody(req, createCampaignSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   let clientId = body.clientId;
 
@@ -58,17 +63,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Client is required' }, { status: 400 });
   }
 
-  const campaign = await prisma.campaign.create({
-    data: {
-      name: body.name,
-      clientId,
-      targetVertical: body.targetVertical ?? null,
-      targetGeo: body.targetGeo ?? null,
-      status: body.status ?? 'active',
-      startDate: body.startDate ? new Date(body.startDate) : new Date(),
-      endDate: null,
-    },
-  });
+  try {
+    const campaign = await prisma.campaign.create({
+      data: {
+        name: body.name,
+        clientId,
+        targetVertical: body.targetVertical ?? null,
+        targetGeo: body.targetGeo ?? null,
+        status: body.status ?? 'active',
+        startDate: body.startDate ?? new Date(),
+        endDate: null,
+      },
+    });
 
-  return NextResponse.json(campaign, { status: 201 });
+    return NextResponse.json(campaign, { status: 201 });
+  } catch (err) {
+    return handleApiError('api/campaigns POST', err);
+  }
 }

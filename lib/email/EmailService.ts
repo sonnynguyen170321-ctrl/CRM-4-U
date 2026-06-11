@@ -13,8 +13,19 @@ export interface SendEmailOptions {
   replyTo?: string;
 }
 
+/** A message fetched from a connected inbox (metadata only — no body). */
+export interface InboxMessage {
+  fromEmail: string;
+  subject: string;
+  date: Date;
+  /** Recipient extracted from an NDR header (X-Failed-Recipients), if present. */
+  failedRecipient?: string | null;
+}
+
 export interface EmailAdapter {
   send(options: SendEmailOptions): Promise<void>;
+  /** Fetch inbox messages received since `since`. Optional — not all adapters sync. */
+  fetchMessagesSince?(since: Date): Promise<InboxMessage[]>;
 }
 
 /**
@@ -30,6 +41,12 @@ export class EmailService {
 
   async send(options: SendEmailOptions): Promise<void> {
     return this.adapter.send(options);
+  }
+
+  /** Returns null when the underlying adapter does not support inbox sync. */
+  async fetchMessagesSince(since: Date): Promise<InboxMessage[] | null> {
+    if (!this.adapter.fetchMessagesSince) return null;
+    return this.adapter.fetchMessagesSince(since);
   }
 
   static fromAccount(account: EmailAccount): EmailService {

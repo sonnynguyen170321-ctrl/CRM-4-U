@@ -25,28 +25,7 @@ const notifications: any[] = _g.__crm_notifications;
 const activities: any[] = _g.__crm_activities;
 const emailAccounts: any[] = _g.__crm_emailAccounts;
 
-function getUserRoleScope(userId: string): string[] {
-  const currentUser = mock.mockUsers.find(u => u.id === userId);
-  if (!currentUser) return [];
 
-  if (currentUser.role === 'director') return mock.mockUsers.map(u => u.id);
-  if (currentUser.role === 'floor_manager') {
-    const teamLeads = mock.mockUsers.filter(u => u.managerId === currentUser.id);
-    const leadIds = teamLeads.map(tl => tl.id);
-    const sdrs = mock.mockUsers.filter(u => leadIds.includes(u.managerId!));
-    return [currentUser.id, ...teamLeads.map(t => t.id), ...sdrs.map(s => s.id)];
-  }
-  if (currentUser.role === 'team_lead') {
-    const sdrs = mock.mockUsers.filter(u => u.managerId === currentUser.id);
-    return [currentUser.id, ...sdrs.map(s => s.id)];
-  }
-  return [currentUser.id];
-}
-
-function getCampaignIdsForUser(userId: string): string[] {
-  const assignments = mock.mockCampaignSdrs.filter(cs => cs.userId === userId);
-  return assignments.map(cs => cs.campaignId);
-}
 
 export const prismaMock: any = {
   user: {
@@ -409,8 +388,8 @@ export const prismaMock: any = {
     },
   },
   client: {
-    findMany: async ({ orderBy, select }: any = {}) => {
-      let result = [...mock.mockClients];
+    findMany: async ({ select }: any = {}) => {
+      const result = [...mock.mockClients];
       return result.map(c => select ? Object.fromEntries(Object.keys(select).map(k => [k, (c as any)[k]])) : c);
     },
     create: async ({ data }: any) => {

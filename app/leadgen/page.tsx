@@ -57,7 +57,7 @@ const PRIORITY_CONFIG = {
 const KANBAN_STAGES = ['new', 'replied', 'meeting_booked', 'won'] as const;
 
 export default function LeadgenPage() {
-  const { currentRole, currentUserId } = useAppContext();
+  const { currentRole } = useAppContext();
   const { showToast } = useToast();
   const router = useRouter();
 

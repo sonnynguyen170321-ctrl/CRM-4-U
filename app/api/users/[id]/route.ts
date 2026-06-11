@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { hash } from 'bcryptjs';
+import { parseBody } from '@/lib/validation/core';
+import { updateUserSchema } from '@/lib/validation/schemas';
 
 export async function GET(
   _req: NextRequest,
@@ -42,12 +44,17 @@ export async function PUT(
   const currentUser = userOrRes as SessionUser;
 
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateUserSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   // Users can update themselves; directors can update anyone
   if (currentUser.id !== id && currentUser.role !== 'director') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const updateData: any = {};
   if (body.firstName !== undefined) updateData.firstName = body.firstName;

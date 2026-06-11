@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { createTaskForStep, unenrollLead } from '@/lib/sequences/engine';
+import { parseBody } from '@/lib/validation/core';
+import { enrollSchema } from '@/lib/validation/schemas';
 
 export async function POST(
   req: NextRequest,
@@ -12,19 +15,22 @@ export async function POST(
   const user = userOrRes as SessionUser;
 
   const { id } = await params;
-  const body = await req.json();
-  const { leadId } = body;
+  const parsed = await parseBody(req, enrollSchema);
+  if (parsed.error) return parsed.error;
+  const { leadId } = parsed.data;
 
-  if (!leadId) {
-    return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
-  }
-
-  const sequence = await prisma.sequence.findUnique({ where: { id } });
+  const sequence = await prisma.sequence.findUnique({
+    where: { id },
+    include: { steps: { orderBy: { order: 'asc' } } },
+  });
   if (!sequence) {
     return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
   }
   if (!sequence.isActive) {
     return NextResponse.json({ error: 'Sequence is inactive' }, { status: 400 });
+  }
+  if (sequence.steps.length === 0) {
+    return NextResponse.json({ error: 'Sequence has no steps' }, { status: 400 });
   }
 
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -32,16 +38,17 @@ export async function POST(
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
   }
 
-  // If already enrolled in a different sequence, log unenroll activity first
-  if ((lead as any).sequenceId && (lead as any).sequenceId !== id) {
-    const prevSeq = await prisma.sequence.findUnique({ where: { id: (lead as any).sequenceId } });
+  // One active sequence per lead: switching unenrolls from the current one
+  if (lead.sequenceId && lead.sequenceId !== id) {
+    const prevSeq = await prisma.sequence.findUnique({ where: { id: lead.sequenceId } });
+    await unenrollLead(leadId, lead.sequenceId);
     await prisma.activity.create({
       data: {
         userId: user.id,
         leadId,
         type: 'sequence_unenrolled',
-        description: `Unenrolled from ${(prevSeq as any)?.name ?? (lead as any).sequenceId} (switched to ${(sequence as any).name})`,
-        metadata: { sequenceId: (lead as any).sequenceId },
+        description: `Unenrolled from ${prevSeq?.name ?? lead.sequenceId} (switched to ${sequence.name})`,
+        metadata: { sequenceId: lead.sequenceId },
       },
     });
   }
@@ -51,6 +58,7 @@ export async function POST(
     data: {
       sequenceId: id,
       sequenceStep: 1,
+      sequenceStatus: 'active',
       ...(lead.stage === 'new' ? { stage: 'sequence_active' } : {}),
     },
   });
@@ -64,6 +72,10 @@ export async function POST(
       metadata: { sequenceId: id, sequenceName: sequence.name },
     },
   });
+
+  // Auto-create the step-1 task so the sequence shows up on the task board
+  const stepOne = sequence.steps[0];
+  await createTaskForStep(updatedLead, sequence, stepOne, new Date());
 
   return NextResponse.json({ success: true, lead: updatedLead });
 }
@@ -89,13 +101,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
   }
 
-  await prisma.lead.update({
-    where: { id: leadId },
-    data: {
-      sequenceId: null,
-      sequenceStep: null,
-    },
-  });
+  await unenrollLead(leadId, id);
 
   const sequence = await prisma.sequence.findUnique({ where: { id } });
   await prisma.activity.create({

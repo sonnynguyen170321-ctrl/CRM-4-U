@@ -1,4 +1,4 @@
-import type { EmailAdapter, SendEmailOptions } from '../EmailService';
+import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
 
 interface OutlookConfig {
   accessToken: string;
@@ -28,7 +28,7 @@ export class OutlookAdapter implements EmailAdapter {
         client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
         refresh_token: this.config.refreshToken,
         grant_type: 'refresh_token',
-        scope: 'https://graph.microsoft.com/Mail.Send offline_access',
+        scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Read offline_access',
       }),
     });
 
@@ -86,6 +86,37 @@ export class OutlookAdapter implements EmailAdapter {
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
   }
+
+  /**
+   * Fetch inbox messages received since `since` (metadata only).
+   * Requires the Mail.Read scope — accounts connected before that scope was
+   * added must be reconnected from Settings.
+   */
+  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
+    const url =
+      'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages' +
+      `?$filter=receivedDateTime ge ${since.toISOString()}` +
+      '&$select=from,subject,receivedDateTime&$orderby=receivedDateTime desc&$top=50';
+
+    let token = this.config.accessToken;
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+      token = await this.refreshAccessToken();
+      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Microsoft Graph inbox fetch failed: ${(err as any).error?.message ?? res.statusText}`);
+    }
+
+    const data = await res.json();
+    return ((data.value ?? []) as any[]).map((m) => ({
+      fromEmail: (m.from?.emailAddress?.address ?? '').toLowerCase(),
+      subject: m.subject ?? '',
+      date: new Date(m.receivedDateTime),
+      failedRecipient: null,
+    }));
+  }
 }
 
 /** Build the Microsoft OAuth authorization URL. */
@@ -94,7 +125,7 @@ export function getMicrosoftAuthUrl(state?: string): string {
     client_id: process.env.MICROSOFT_CLIENT_ID!,
     response_type: 'code',
     redirect_uri: process.env.MICROSOFT_REDIRECT_URI!,
-    scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+    scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read offline_access',
     response_mode: 'query',
     ...(state ? { state } : {}),
   });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Mail,
@@ -9,8 +9,6 @@ import {
   ShieldAlert,
   Trash2,
   RefreshCw,
-  MessageCircle,
-  ExternalLink,
   Loader2,
   Users,
   Download,
@@ -31,7 +29,16 @@ interface EmailAccount {
   isActive: boolean;
 }
 
+// useSearchParams() requires a Suspense boundary for static prerendering
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsPageInner />
+    </Suspense>
+  );
+}
+
+function SettingsPageInner() {
   const { currentRole, currentUser } = useAppContext();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
@@ -77,10 +84,6 @@ export default function SettingsPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [connectedEmails, setConnectedEmails] = useState<EmailAccount[]>([]);
   const [showManualForm, setShowManualForm] = useState(false);
-  const [telegramBotToken, setTelegramBotToken] = useState('');
-  const [telegramChatId, setTelegramChatId] = useState('');
-  const [telegramConnected, setTelegramConnected] = useState(false);
-  const [telegramConnecting, setTelegramConnecting] = useState(false);
   const [manualEmail, setManualEmail] = useState('');
   const [imapServer, setImapServer] = useState('');
   const [imapPort, setImapPort] = useState('993');
@@ -275,16 +278,6 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => ({}));
       showToast(data.error ?? 'Failed to change password', 'error');
     }
-  };
-
-  const handleConnectTelegram = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!telegramBotToken.trim() || !telegramChatId.trim()) return;
-    setTelegramConnecting(true);
-    await new Promise((r) => setTimeout(r, 900)); // simulate verification
-    setTelegramConnecting(false);
-    setTelegramConnected(true);
-    showToast('Telegram bot connected successfully!', 'success');
   };
 
   const providerLabel = (provider: string) => {
@@ -754,87 +747,6 @@ export default function SettingsPage() {
               </form>
             )}
           </div>
-        </div>
-
-        {/* Telegram Integration */}
-        <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
-            <MessageCircle className="w-4 h-4 text-[#26A5E4]" />
-            <span>Telegram — Internal Team Comms</span>
-          </h3>
-          <p className="text-xs text-text-secondary leading-relaxed">
-            Connect a Telegram bot to receive CRM alerts in your team channel — meeting booked, lead replied, overdue tasks.
-          </p>
-
-          {telegramConnected ? (
-            <div className="flex items-center justify-between p-3 border border-emerald-500/20 bg-emerald-500/5 rounded-xl text-xs">
-              <div className="flex items-center gap-2.5">
-                <MessageCircle className="w-4 h-4 text-[#26A5E4]" />
-                <div>
-                  <p className="font-semibold text-text-primary">Bot Connected</p>
-                  <p className="text-[10px] text-text-muted font-mono">Chat ID: {telegramChatId}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[9px] font-bold rounded font-mono">ACTIVE</span>
-                <button
-                  onClick={() => { setTelegramConnected(false); setTelegramBotToken(''); setTelegramChatId(''); showToast('Telegram disconnected', 'info'); }}
-                  className="p-1 hover:bg-brand-red/10 text-text-muted hover:text-brand-red rounded"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleConnectTelegram} className="space-y-3 text-xs">
-              <div className="p-3 bg-[#26A5E4]/5 border border-[#26A5E4]/20 rounded-xl text-[11px] text-text-secondary leading-relaxed">
-                <strong className="text-text-primary">Setup:</strong> Create a bot via <span className="text-[#26A5E4] font-mono">@BotFather</span> on Telegram, then add it to your team group and paste the token and group chat ID below.{' '}
-                <a href="https://core.telegram.org/bots#how-do-i-create-a-bot" target="_blank" rel="noreferrer" className="text-[#26A5E4] hover:underline inline-flex items-center gap-0.5">
-                  Docs <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold font-mono text-text-muted uppercase">Bot Token</label>
-                  <input
-                    type="text"
-                    value={telegramBotToken}
-                    onChange={(e) => setTelegramBotToken(e.target.value)}
-                    placeholder="123456:ABC-DEF..."
-                    className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-[#26A5E4] font-mono text-[10px]"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold font-mono text-text-muted uppercase">Chat / Group ID</label>
-                  <input
-                    type="text"
-                    value={telegramChatId}
-                    onChange={(e) => setTelegramChatId(e.target.value)}
-                    placeholder="-100123456789"
-                    className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-[#26A5E4] font-mono text-[10px]"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={telegramConnecting}
-                  className="px-4 py-1.5 bg-[#26A5E4] hover:bg-[#1a8ac5] text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-60 flex items-center gap-1.5"
-                >
-                  {telegramConnecting ? (
-                    <>
-                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    'Connect Bot'
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
         </div>
 
         {/* Notification Preferences */}

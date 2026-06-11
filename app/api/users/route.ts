@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
 import { hash } from 'bcryptjs';
+import { parseBody } from '@/lib/validation/core';
+import { createUserSchema } from '@/lib/validation/schemas';
 
 export async function GET() {
   const userOrRes = await requireRole('leadgen');
@@ -33,11 +35,21 @@ export async function POST(req: NextRequest) {
   const userOrRes = await requireRole('director');
   if (userOrRes instanceof NextResponse) return userOrRes;
 
-  const body = await req.json();
+  const parsed = await parseBody(req, createUserSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email: body.email } });
   if (existing) {
     return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
+  }
+
+  // managerId must reference a real, active user
+  if (body.managerId) {
+    const manager = await prisma.user.findUnique({ where: { id: body.managerId } });
+    if (!manager || !manager.isActive) {
+      return NextResponse.json({ error: 'Manager not found' }, { status: 400 });
+    }
   }
 
   const hashedPassword = await hash(body.password, 12);

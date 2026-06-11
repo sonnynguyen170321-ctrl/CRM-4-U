@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import type { EmailAdapter, SendEmailOptions } from '../EmailService';
+import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
 
 interface GmailConfig {
   accessToken: string;
@@ -53,6 +53,49 @@ export class GmailAdapter implements EmailAdapter {
       userId: 'me',
       requestBody: { raw },
     });
+  }
+
+  /** Fetch inbox messages received since `since` (metadata only). */
+  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    oauth2Client.setCredentials({
+      access_token: this.config.accessToken,
+      refresh_token: this.config.refreshToken,
+      expiry_date: this.config.tokenExpiry?.getTime(),
+    });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    const list = await gmail.users.messages.list({
+      userId: 'me',
+      q: `in:inbox after:${Math.floor(since.getTime() / 1000)}`,
+      maxResults: 50,
+    });
+
+    const messages: InboxMessage[] = [];
+    for (const ref of list.data.messages ?? []) {
+      const msg = await gmail.users.messages.get({
+        userId: 'me',
+        id: ref.id!,
+        format: 'metadata',
+        metadataHeaders: ['From', 'Subject', 'Date', 'X-Failed-Recipients'],
+      });
+      const headers = msg.data.payload?.headers ?? [];
+      const header = (name: string) =>
+        headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? '';
+      const fromRaw = header('From');
+      const emailMatch = fromRaw.match(/<([^>]+)>/);
+      messages.push({
+        fromEmail: (emailMatch ? emailMatch[1] : fromRaw).trim().toLowerCase(),
+        subject: header('Subject'),
+        date: header('Date') ? new Date(header('Date')) : new Date(Number(msg.data.internalDate)),
+        failedRecipient: header('X-Failed-Recipients') || null,
+      });
+    }
+    return messages;
   }
 }
 

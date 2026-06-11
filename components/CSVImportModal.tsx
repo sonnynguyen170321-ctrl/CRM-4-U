@@ -69,13 +69,31 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
   return { headers, rows };
 }
 
+interface DuplicateInfo {
+  row: number;
+  matchType: 'email' | 'name_company' | 'phone';
+  existingLeadId: string;
+  existingSummary: string;
+  incoming: { firstName?: string; lastName?: string; company?: string; email?: string };
+}
+
 interface DupSummary {
   total: number;
   toImport: number;
   exactDuplicates: number;
   possibleMatches: number;
   rowsWithErrors: number;
+  duplicates: DuplicateInfo[];
+  errorRows: { row: number; reason: string }[];
 }
+
+type Resolution = 'skip' | 'update' | 'import';
+
+const MATCH_LABELS: Record<DuplicateInfo['matchType'], string> = {
+  email: 'Email match',
+  name_company: 'Name + company',
+  phone: 'Phone match',
+};
 
 const inputClass =
   'w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors';
@@ -101,6 +119,8 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState('');
   const [dupSummary, setDupSummary] = useState<DupSummary | null>(null);
+  const [defaultResolution, setDefaultResolution] = useState<Resolution>('skip');
+  const [rowResolutions, setRowResolutions] = useState<Record<string, Resolution>>({});
 
   // Assignment state
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string; role: string }[]>([]);
@@ -229,6 +249,8 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
       const data = await res.json();
       if (res.ok) {
         setDupSummary(data);
+        setRowResolutions({});
+        setDefaultResolution('skip');
         setStep('preview');
       } else {
         showToast(data.error ?? 'Failed to analyze file', 'error');
@@ -252,12 +274,14 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
           campaignId: assignCampaign || undefined,
           initialStage: assignStage,
           sequenceId: assignSequence || undefined,
+          defaultResolution,
+          resolutions: rowResolutions,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         showToast(
-          `Imported ${data.imported} lead${data.imported !== 1 ? 's' : ''}${data.skipped > 0 ? ` · ${data.skipped} skipped` : ''}`,
+          `Imported ${data.imported} lead${data.imported !== 1 ? 's' : ''}${data.updated > 0 ? ` · ${data.updated} updated` : ''}${data.skipped > 0 ? ` · ${data.skipped} skipped` : ''}`,
           'success'
         );
         onSuccess?.();
@@ -485,7 +509,79 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                {dupSummary.toImport === 0 && (
+                {/* Duplicate resolution (SKILL.md §24) */}
+                {dupSummary.duplicates.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className={labelClass}>Resolve {dupSummary.duplicates.length} duplicate{dupSummary.duplicates.length !== 1 ? 's' : ''}</p>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <span className="text-text-muted font-mono uppercase">All:</span>
+                        {(['skip', 'update', 'import'] as Resolution[]).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => { setDefaultResolution(r); setRowResolutions({}); }}
+                            className={`px-2 py-0.5 rounded-md border font-bold capitalize transition-colors ${
+                              defaultResolution === r
+                                ? 'bg-brand-red/10 border-brand-red/40 text-brand-red'
+                                : 'bg-background border-card-border text-text-muted hover:text-text-primary'
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-card-border overflow-hidden max-h-44 overflow-y-auto divide-y divide-card-border">
+                      {dupSummary.duplicates.map((d) => (
+                        <div key={d.row} className="px-3 py-2 flex items-center justify-between gap-2 text-[11px]">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-text-primary truncate">
+                              Row {d.row}: {d.incoming.firstName} {d.incoming.lastName}
+                              <span className="ml-1.5 text-[9px] font-mono uppercase text-amber-500">{MATCH_LABELS[d.matchType]}</span>
+                            </p>
+                            <p className="text-text-muted truncate">matches {d.existingSummary}</p>
+                          </div>
+                          <select
+                            value={rowResolutions[String(d.row)] ?? defaultResolution}
+                            onChange={(e) =>
+                              setRowResolutions((prev) => ({ ...prev, [String(d.row)]: e.target.value as Resolution }))
+                            }
+                            className="bg-background border border-card-border rounded-md px-1.5 py-1 text-[10px] font-semibold text-text-primary focus:outline-none focus:border-brand-red shrink-0"
+                          >
+                            <option value="skip">Skip</option>
+                            <option value="update">Update existing</option>
+                            <option value="import">Import anyway</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-text-muted">
+                      “Update existing” fills only empty fields on the matched lead; “Import anyway” creates a separate record.
+                    </p>
+                  </div>
+                )}
+
+                {/* Error report download (SKILL.md §24) */}
+                {dupSummary.errorRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const csv = ['row,reason', ...dupSummary.errorRows.map((e) => `${e.row},"${e.reason.replace(/"/g, '""')}"`)].join('\n');
+                      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'import-errors.csv';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="w-full py-2 border border-brand-red/30 bg-brand-red/5 hover:bg-brand-red/10 rounded-lg text-xs font-semibold text-brand-red transition-colors"
+                  >
+                    Download error report ({dupSummary.errorRows.length} row{dupSummary.errorRows.length !== 1 ? 's' : ''})
+                  </button>
+                )}
+
+                {dupSummary.toImport === 0 && dupSummary.duplicates.length === 0 && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
                     <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                     <p className="text-[11px] text-amber-600">All rows are duplicates or have errors. Nothing to import.</p>
@@ -547,8 +643,8 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
                   <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-emerald-600">
                     Ready to import {dupSummary?.toImport ?? csvRows.length} lead{(dupSummary?.toImport ?? csvRows.length) !== 1 ? 's' : ''}.
-                    {dupSummary && dupSummary.exactDuplicates + dupSummary.possibleMatches > 0 && (
-                      <span className="text-amber-600"> {dupSummary.exactDuplicates + dupSummary.possibleMatches} duplicate{dupSummary.exactDuplicates + dupSummary.possibleMatches !== 1 ? 's' : ''} will be skipped.</span>
+                    {dupSummary && dupSummary.duplicates.length > 0 && (
+                      <span className="text-amber-600"> {dupSummary.duplicates.length} duplicate{dupSummary.duplicates.length !== 1 ? 's' : ''} will follow the resolution you chose.</span>
                     )}
                   </p>
                 </div>
@@ -590,7 +686,13 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
                 <button
                   type="button"
                   onClick={() => setStep('assign')}
-                  disabled={!dupSummary || dupSummary.toImport === 0}
+                  disabled={
+                    !dupSummary ||
+                    (dupSummary.toImport === 0 &&
+                      !dupSummary.duplicates.some(
+                        (d) => (rowResolutions[String(d.row)] ?? defaultResolution) !== 'skip'
+                      ))
+                  }
                   className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
                 >
                   Assign & Import →

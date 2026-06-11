@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
+import { unenrollLead } from '@/lib/sequences/engine';
+import { parseBody } from '@/lib/validation/core';
+import { updateLeadSchema } from '@/lib/validation/schemas';
 
 export async function GET(
   _req: NextRequest,
@@ -10,6 +13,7 @@ export async function GET(
 ) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
 
@@ -37,6 +41,9 @@ export async function GET(
   });
 
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await canAccessUser(user, lead.assignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const aiScore = scoreLead({
     ...lead,
@@ -59,10 +66,15 @@ export async function PUT(
   const user = userOrRes as SessionUser;
 
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateLeadSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const existing = await prisma.lead.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await canAccessUser(user, existing.assignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const updated = await prisma.lead.update({
     where: { id },
@@ -138,12 +150,10 @@ export async function PUT(
     }
 
     // Auto-unenroll from sequence on terminal/milestone stage changes
+    // (also skips the lead's pending sequence tasks so no orphans remain)
     const unenrollStages = ['meeting_booked', 'won', 'lost'];
     if (unenrollStages.includes(body.stage) && existing.sequenceId) {
-      await prisma.lead.update({
-        where: { id },
-        data: { sequenceId: null, sequenceStep: null },
-      });
+      await unenrollLead(id, existing.sequenceId);
       const reason = body.stage === 'meeting_booked' ? 'paused — meeting booked' : 'ended — deal closed';
       await prisma.activity.create({
         data: {

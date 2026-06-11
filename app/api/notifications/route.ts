@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { markNotificationSchema } from '@/lib/validation/schemas';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -32,7 +34,9 @@ export async function PUT(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
+  const parsed = await parseBody(req, markNotificationSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   if (body.id) {
     // Mark a single notification as read — ownership enforced

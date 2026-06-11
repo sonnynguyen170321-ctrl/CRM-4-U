@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { updateNoteSchema } from '@/lib/validation/schemas';
 
 export async function PUT(
   req: NextRequest,
@@ -12,7 +14,9 @@ export async function PUT(
   const user = userOrRes as SessionUser;
 
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateNoteSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const existing = await prisma.note.findUnique({ where: { id }, select: { createdById: true } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });

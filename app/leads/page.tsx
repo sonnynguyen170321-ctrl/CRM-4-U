@@ -35,6 +35,7 @@ interface Lead {
   nextTaskDue?: string;
   nextTaskType?: string | null;
   sequenceId?: string | null;
+  atRisk?: boolean;
   tags?: string[];
   assignedTo?: { id: string; firstName: string; lastName: string };
   aiScore?: number;
@@ -248,8 +249,11 @@ export default function LeadsPage() {
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
-  const SortTh = ({ field, label }: { field: typeof sortField; label: string }) => (
+  // Render helper, not a component — defining components during render trips
+  // the react-hooks/static-components rule and remounts the node every render.
+  const renderSortTh = (field: typeof sortField, label: string) => (
     <th
+      key={field}
       className="p-3 cursor-pointer select-none hover:text-text-primary transition-colors"
       onClick={() => handleSort(field)}
       aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -515,10 +519,11 @@ export default function LeadsPage() {
                     </div>
                   ) : (
                     colLeads.map((lead) => {
-                      const daysOverdue = lead.nextTaskDue && lead.sequenceId
+                      const daysOverdue = lead.nextTaskDue
                         ? Math.floor((Date.now() - new Date(lead.nextTaskDue).getTime()) / 86400000)
                         : 0;
-                      const atRisk = daysOverdue >= 3;
+                      // Server flag: a sequence step task overdue 3+ days (SKILL.md §3)
+                      const atRisk = lead.atRisk ?? false;
                       return (
                         <div
                           key={lead.id}
@@ -531,8 +536,11 @@ export default function LeadsPage() {
                           } ${atRisk ? 'border-amber-500/40' : ''}`}
                         >
                           {atRisk && (
-                            <span className="absolute top-2 right-2 text-xs font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded">
-                              ⚠ {daysOverdue}d
+                            <span
+                              className="absolute top-2 right-2 text-xs font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded"
+                              title={`Sequence task overdue ${Math.max(daysOverdue, 3)} days`}
+                            >
+                              ⚠ {Math.max(daysOverdue, 3)}d
                             </span>
                           )}
                           <div>
@@ -622,12 +630,12 @@ export default function LeadsPage() {
                       aria-label="Select all leads"
                     />
                   </th>
-                  <SortTh field="name" label="Name" />
-                  <SortTh field="company" label="Company" />
-                  <SortTh field="stage" label="Stage" />
-                  <SortTh field="priority" label="Priority" />
-                  <SortTh field="assignedTo" label="Assigned" />
-                  <SortTh field="lastContacted" label="Last Contact" />
+                  {renderSortTh('name', 'Name')}
+                  {renderSortTh('company', 'Company')}
+                  {renderSortTh('stage', 'Stage')}
+                  {renderSortTh('priority', 'Priority')}
+                  {renderSortTh('assignedTo', 'Assigned')}
+                  {renderSortTh('lastContacted', 'Last Contact')}
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -656,6 +664,14 @@ export default function LeadsPage() {
                       </td>
                       <td className="p-3 font-semibold text-text-primary whitespace-nowrap">
                         {lead.firstName} {lead.lastName}
+                        {lead.atRisk && (
+                          <span
+                            className="ml-1.5 text-xs font-bold text-amber-500"
+                            title="Sequence task overdue 3+ days"
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 font-semibold">{lead.company}</td>
                       <td className="p-3">

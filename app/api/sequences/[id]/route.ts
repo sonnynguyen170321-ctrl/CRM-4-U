@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody } from '@/lib/validation/core';
+import { updateSequenceSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET(
   _req: NextRequest,
@@ -34,17 +37,20 @@ export async function PUT(
   if (userOrRes instanceof NextResponse) return userOrRes;
 
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateSequenceSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const existing = await prisma.sequence.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Rebuild steps and update sequence atomically
-  const sequence = await prisma.$transaction(async (tx) => {
+  try {
+    // Sequential statements — the Neon HTTP driver doesn't support interactive
+    // transactions, so rebuild steps as delete-then-create.
     if (body.steps !== undefined) {
-      await tx.sequenceStep.deleteMany({ where: { sequenceId: id } });
-      await tx.sequenceStep.createMany({
-        data: body.steps.map((step: any, idx: number) => ({
+      await prisma.sequenceStep.deleteMany({ where: { sequenceId: id } });
+      await prisma.sequenceStep.createMany({
+        data: (body.steps ?? []).map((step, idx) => ({
           sequenceId: id,
           order: step.order ?? idx + 1,
           channel: step.channel,
@@ -57,7 +63,7 @@ export async function PUT(
       });
     }
 
-    return tx.sequence.update({
+    const sequence = await prisma.sequence.update({
       where: { id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
@@ -66,9 +72,11 @@ export async function PUT(
       },
       include: { steps: { orderBy: { order: 'asc' } } },
     });
-  });
 
-  return NextResponse.json(sequence);
+    return NextResponse.json(sequence);
+  } catch (err) {
+    return handleApiError('api/sequences/[id] PUT', err);
+  }
 }
 
 export async function DELETE(
@@ -83,22 +91,24 @@ export async function DELETE(
   const existing = await prisma.sequence.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Unenroll all leads and nullify activity/task FK references before deleting
-  await prisma.$transaction([
-    prisma.lead.updateMany({
+  try {
+    // Archive, don't delete (SKILL.md §3): history and step config stay intact.
+    // Unenroll all leads and skip their pending sequence tasks first.
+    await prisma.task.updateMany({
+      where: { sequenceId: id, status: 'pending' },
+      data: { status: 'skipped' },
+    });
+    await prisma.lead.updateMany({
       where: { sequenceId: id },
-      data: { sequenceId: null, sequenceStep: null },
-    }),
-    prisma.activity.updateMany({
-      where: { sequenceId: id },
-      data: { sequenceId: null },
-    }),
-    prisma.task.updateMany({
-      where: { sequenceId: id },
-      data: { sequenceId: null, sequenceStep: null },
-    }),
-    prisma.sequence.delete({ where: { id } }),
-  ]);
+      data: { sequenceId: null, sequenceStep: null, sequenceStatus: null },
+    });
+    await prisma.sequence.update({
+      where: { id },
+      data: { isArchived: true, isActive: false },
+    });
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, archived: true });
+  } catch (err) {
+    return handleApiError('api/sequences/[id] DELETE', err);
+  }
 }

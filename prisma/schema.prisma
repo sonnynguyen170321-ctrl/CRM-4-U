@@ -97,6 +97,11 @@ enum EmailProvider {
   imap_smtp
 }
 
+enum SequenceEnrollmentStatus {
+  active
+  paused
+}
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -188,6 +193,8 @@ model Lead {
   sequenceId      String?
   sequence        Sequence? @relation(fields: [sequenceId], references: [id])
   sequenceStep    Int?
+  sequenceStatus  SequenceEnrollmentStatus?
+  emailInvalid    Boolean   @default(false)
   source          String?
   tags            String[]
   priority        Priority  @default(warm)
@@ -214,6 +221,7 @@ model Sequence {
   name        String
   description String?
   isActive    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
@@ -258,6 +266,9 @@ model Task {
   status       TaskStatus   @default(pending)
   sequenceId   String?
   sequenceStep Int?
+  // Soft lock claimed by the auto-send cron; CAS via updateMany since the
+  // Neon HTTP driver does not support interactive transactions.
+  lockedAt     DateTime?
   priority     TaskPriority @default(medium)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -358,6 +369,7 @@ model EmailAccount {
   encPassword  String?       @db.Text
   isActive     Boolean       @default(true)
   lastSyncAt   DateTime?
+  syncCursor   String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

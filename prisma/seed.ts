@@ -272,6 +272,16 @@ async function main() {
     },
   });
 
+  const telestarClient = await prisma.client.create({
+    data: {
+      name: 'Telestar',
+      industry: 'BPO / SDR-as-a-Service',
+      contactName: 'Dean',
+      contactEmail: 'dean@telestar.vn',
+      status: 'active',
+    },
+  });
+
   console.log('✅ Clients created');
 
   // ─── Campaigns ────────────────────────────────────────────────────────────
@@ -313,6 +323,17 @@ async function main() {
       clientId: acme.id,
       name: 'Leadgen Qualification Pool',
       targetVertical: 'Multi-sector',
+      targetGeo: 'Global',
+      status: 'active',
+      startDate: new Date('2026-06-01'),
+    },
+  });
+
+  const cmpFallback = await prisma.campaign.create({
+    data: {
+      clientId: telestarClient.id,
+      name: 'Telestar Campaign',
+      targetVertical: 'Internal',
       targetGeo: 'Global',
       status: 'active',
       startDate: new Date('2026-06-01'),

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { advanceSequence } from '@/lib/sequences/engine';
+import { nextBusinessDay } from '@/lib/dates/businessDays';
+import { parseBody } from '@/lib/validation/core';
+import { updateTaskSchema } from '@/lib/validation/schemas';
 
 export async function GET(
   _req: NextRequest,
@@ -9,10 +13,14 @@ export async function GET(
 ) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
   const task = await prisma.task.findUnique({ where: { id }, include: { lead: true } });
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await canAccessUser(user, task.userId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   return NextResponse.json(task);
 }
 
@@ -25,19 +33,24 @@ export async function PUT(
   const user = userOrRes as SessionUser;
 
   const { id } = await params;
-  const body = await req.json();
+  const parsed = await parseBody(req, updateTaskSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   const task = await prisma.task.findUnique({
     where: { id },
     include: { lead: true },
   });
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await canAccessUser(user, task.userId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const updated = await prisma.task.update({
     where: { id },
     data: {
       ...(body.status !== undefined && { status: body.status }),
-      ...(body.dueDate !== undefined && { dueDate: new Date(body.dueDate) }),
+      ...(body.dueDate !== undefined && { dueDate: body.dueDate }),
       ...(body.status === 'completed' && { completedAt: new Date() }),
       ...(body.notes !== undefined && { notes: body.notes }),
       ...(body.outcome !== undefined && { outcome: body.outcome }),
@@ -83,57 +96,24 @@ export async function PUT(
       });
     }
 
-    // Advance sequence step when a sequence task is completed
-    if (body.status === 'completed' && task.sequenceId && task.sequenceStep !== null && task.sequenceStep !== undefined) {
-      const lead = await prisma.lead.findUnique({
-        where: { id: task.leadId },
-        select: { sequenceId: true, sequenceStep: true, assignedToId: true, firstName: true, lastName: true },
+    // Callback requested → auto-create a follow-up phone task next business day (SKILL.md §21)
+    if (body.outcome === 'callback_requested' && task.type === 'phone') {
+      await prisma.task.create({
+        data: {
+          leadId: task.leadId,
+          userId: task.userId,
+          type: 'phone',
+          title: `Callback: ${task.lead.firstName} ${task.lead.lastName}`,
+          description: 'Callback requested on previous call',
+          dueDate: nextBusinessDay(new Date()),
+          priority: 'high',
+        },
       });
+    }
 
-      if (lead && lead.sequenceId === task.sequenceId) {
-        const sequence = await prisma.sequence.findUnique({
-          where: { id: task.sequenceId },
-          include: { _count: { select: { steps: true } } },
-        });
-
-        if (sequence) {
-          const totalSteps = (sequence as any)._count.steps;
-          const nextStep = (lead.sequenceStep ?? task.sequenceStep) + 1;
-
-          if (nextStep > totalSteps) {
-            // All steps done — unenroll and notify
-            await prisma.lead.update({
-              where: { id: task.leadId },
-              data: { sequenceId: null, sequenceStep: null },
-            });
-            await prisma.activity.create({
-              data: {
-                userId: user.id,
-                leadId: task.leadId,
-                type: 'sequence_completed',
-                description: `Completed all ${totalSteps} steps of "${sequence.name}"`,
-                metadata: { sequenceName: sequence.name, totalSteps },
-              },
-            });
-            if (lead.assignedToId) {
-              await prisma.notification.create({
-                data: {
-                  userId: lead.assignedToId,
-                  type: 'sequence_completed',
-                  title: 'Sequence Completed',
-                  text: `${lead.firstName} ${lead.lastName} completed all ${totalSteps} steps in "${sequence.name}".`,
-                  linkTo: `/leads/${task.leadId}`,
-                },
-              });
-            }
-          } else {
-            await prisma.lead.update({
-              where: { id: task.leadId },
-              data: { sequenceStep: nextStep },
-            });
-          }
-        }
-      }
+    // Advance sequence step when a sequence task is completed
+    if (body.status === 'completed') {
+      await advanceSequence(task, user.id);
     }
   }
 
