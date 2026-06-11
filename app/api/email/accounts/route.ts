@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { encrypt } from '@/lib/crypto';
+import { verifyImapCredentials } from '@/lib/email/adapters/ImapAdapter';
 
 export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -35,12 +36,28 @@ export async function POST(req: NextRequest) {
   const imapHost = body.imapHost ?? body.imapServer;
   const smtpHost = body.smtpHost ?? body.smtpServer;
 
-  // For IMAP/SMTP: validate server details are present
+  // For IMAP/SMTP: validate server details are present, then verify credentials
   if (body.provider === 'imap_smtp') {
-    if (!imapHost || !smtpHost || !body.password) {
+    if (!imapHost || !smtpHost || !body.password || !body.email) {
       return NextResponse.json(
-        { error: 'IMAP server, SMTP server, and password are required' },
+        { error: 'Email address, IMAP server, SMTP server, and password are required' },
         { status: 400 }
+      );
+    }
+
+    const valid = await verifyImapCredentials({
+      email: body.email,
+      password: body.password,
+      smtpServer: smtpHost,
+      smtpPort: parseInt(body.smtpPort, 10) || 465,
+      imapServer: imapHost,
+      imapPort: parseInt(body.imapPort, 10) || 993,
+    });
+
+    if (!valid) {
+      return NextResponse.json(
+        { error: 'Could not connect to SMTP server — check your credentials and server settings' },
+        { status: 422 }
       );
     }
   }

@@ -7,6 +7,10 @@ export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET || !process.env.MICROSOFT_REDIRECT_URI) {
+    return NextResponse.redirect(new URL('/settings?error=microsoft_not_configured', _req.url));
+  }
+
   const nonce = randomBytes(32).toString('hex');
   const authUrl = getMicrosoftAuthUrl(nonce);
 

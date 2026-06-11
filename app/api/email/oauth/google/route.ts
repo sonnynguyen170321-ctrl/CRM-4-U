@@ -7,6 +7,10 @@ export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+    return NextResponse.redirect(new URL('/settings?error=google_not_configured', _req.url));
+  }
+
   const nonce = randomBytes(32).toString('hex');
   const authUrl = getGoogleAuthUrl(nonce);
 

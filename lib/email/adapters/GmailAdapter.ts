@@ -73,10 +73,14 @@ export async function exchangeGoogleCode(code: string) {
   oauth2Client.setCredentials(tokens);
   const profile = await gmail.users.getProfile({ userId: 'me' });
 
+  if (!tokens.access_token) {
+    throw new Error('Google did not return an access token');
+  }
+
   return {
     email: profile.data.emailAddress!,
-    accessToken: tokens.access_token!,
-    refreshToken: tokens.refresh_token!,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token ?? null,
     tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
   };
 }

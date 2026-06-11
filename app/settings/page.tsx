@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Mail,
   Key,
@@ -16,6 +17,9 @@ import {
   Plus,
   X,
   Bell,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
@@ -30,6 +34,42 @@ interface EmailAccount {
 export default function SettingsPage() {
   const { currentRole, currentUser } = useAppContext();
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [providerStatus, setProviderStatus] = useState<{ gmail: boolean; outlook: boolean } | null>(null);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const success = searchParams.get('success');
+
+    if (error === 'google_not_configured') {
+      showToast('Gmail OAuth not configured — credentials missing in .env.local', 'error');
+    } else if (error === 'microsoft_not_configured') {
+      showToast('Outlook OAuth not configured — credentials missing in .env.local', 'error');
+    } else if (error === 'google_auth_failed') {
+      showToast('Google OAuth failed — check your Client ID, Secret, and redirect URI', 'error');
+    } else if (error === 'google_invalid_state') {
+      showToast('Google OAuth state mismatch — please try connecting again', 'error');
+    } else if (error === 'google_token_exchange_failed') {
+      showToast('Google token exchange failed — check your OAuth credentials', 'error');
+    } else if (error === 'microsoft_auth_failed') {
+      showToast('Microsoft OAuth failed — check your credentials and redirect URI', 'error');
+    } else if (error === 'microsoft_invalid_state') {
+      showToast('Microsoft OAuth state mismatch — please try connecting again', 'error');
+    } else if (error === 'microsoft_token_exchange_failed') {
+      showToast('Microsoft token exchange failed — check your OAuth credentials', 'error');
+    } else if (success === 'gmail_connected') {
+      showToast('Gmail connected successfully!', 'success');
+    } else if (success === 'outlook_connected') {
+      showToast('Outlook connected successfully!', 'success');
+    }
+
+    // Clean up URL params so they don't persist on refresh
+    if (error || success) {
+      router.replace('/settings');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [profileFirstName, setProfileFirstName] = useState('');
   const [profileLastName, setProfileLastName] = useState('');
@@ -119,6 +159,11 @@ export default function SettingsPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setConnectedEmails(Array.isArray(data) ? data : []))
       .catch(() => showToast('Failed to load connected email accounts', 'error'));
+
+    fetch('/api/email/providers')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setProviderStatus(data); })
+      .catch(() => {});
   }, [showToast]);
 
   useEffect(() => {
@@ -187,9 +232,10 @@ export default function SettingsPage() {
       setSmtpServer('');
       setSmtpPort('465');
       setMailPassword('');
-      showToast(`IMAP/SMTP server connected for ${created.email}`, 'success');
+      showToast(`IMAP/SMTP connected for ${created.email}`, 'success');
     } else {
-      showToast('Failed to connect IMAP account', 'error');
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error ?? 'Failed to connect IMAP account', 'error');
     }
   };
 
@@ -446,7 +492,7 @@ export default function SettingsPage() {
               </div>
 
               <p className="text-[10px] text-text-muted font-mono border-t border-card-border/50 pt-3">
-                Theme is controlled by the sun/moon toggle in the top navigation bar.
+                Theme is controlled via your profile avatar in the top navigation bar.
               </p>
             </div>
           </div>
@@ -551,16 +597,50 @@ export default function SettingsPage() {
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
+            {/* Provider status badges */}
+            {providerStatus !== null && (
+              <div className="flex flex-wrap gap-2 text-[10px] font-mono">
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${providerStatus.gmail ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-red-500/30 bg-red-500/10 text-red-400'}`}>
+                  {providerStatus.gmail ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                  Gmail OAuth {providerStatus.gmail ? 'configured' : 'not configured'}
+                </span>
+                <span className={`flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${providerStatus.outlook ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-red-500/30 bg-red-500/10 text-red-400'}`}>
+                  {providerStatus.outlook ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                  Outlook OAuth {providerStatus.outlook ? 'configured' : 'not configured'}
+                </span>
+              </div>
+            )}
+
+            {/* Not-configured warning */}
+            {providerStatus !== null && (!providerStatus.gmail || !providerStatus.outlook) && (
+              <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">OAuth credentials missing</p>
+                  {!providerStatus.gmail && (
+                    <p className="text-amber-400/80 font-mono text-[10px]">Gmail: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI in .env.local</p>
+                  )}
+                  {!providerStatus.outlook && (
+                    <p className="text-amber-400/80 font-mono text-[10px]">Outlook: set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI in .env.local</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 onClick={handleConnectGmail}
-                className="px-3 py-1.5 border border-blue-500/30 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/15 text-blue-500 text-xs font-semibold rounded-lg transition-all active:scale-95"
+                disabled={providerStatus !== null && !providerStatus.gmail}
+                title={providerStatus !== null && !providerStatus.gmail ? 'Gmail OAuth not configured — set env vars first' : undefined}
+                className="px-3 py-1.5 border border-blue-500/30 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/15 text-blue-500 text-xs font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
                 + Connect Gmail
               </button>
               <button
                 onClick={handleConnectOutlook}
-                className="px-3 py-1.5 border border-indigo-500/30 hover:border-indigo-500 bg-indigo-500/5 hover:bg-indigo-500/15 text-indigo-500 text-xs font-semibold rounded-lg transition-all active:scale-95"
+                disabled={providerStatus !== null && !providerStatus.outlook}
+                title={providerStatus !== null && !providerStatus.outlook ? 'Outlook OAuth not configured — set env vars first' : undefined}
+                className="px-3 py-1.5 border border-indigo-500/30 hover:border-indigo-500 bg-indigo-500/5 hover:bg-indigo-500/15 text-indigo-500 text-xs font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
                 + Connect Outlook
               </button>
