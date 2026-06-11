@@ -69,7 +69,7 @@ export async function getSequenceAnalytics(sequenceId: string): Promise<Sequence
 
   const templateSends = await prisma.activity.groupBy({
     by: ['description'],
-    where: { type: 'email_sent', metadata: { path: ['templateId'], not: null } },
+    where: { type: 'email_sent', metadata: { path: ['templateId'], not: null as any } },
     _count: { id: true },
   });
 

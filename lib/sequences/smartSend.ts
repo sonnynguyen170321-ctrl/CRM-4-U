@@ -142,15 +142,16 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
         include: { template: { include: { abVariants: true } } },
       });
 
+      const template = step?.template;
       const eligible =
         step?.autoComplete &&
         step.channel === 'email' &&
-        step.template &&
+        template &&
         lead.sequenceId === task.sequenceId &&
         lead.sequenceStatus === 'active' &&
         !lead.emailInvalid &&
         lead.email;
-      if (!eligible) { skipped++; continue; }
+      if (!eligible || !template) { skipped++; continue; }
 
       if (lead.timezone && !isWithinBusinessHours(now, lead.timezone)) {
         skipped++;
@@ -173,21 +174,21 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       let subject: string;
       let body: string;
 
-      if (step.template.abVariants.length > 0 && step.template.abVariants.length >= 2) {
-        const variantA = step.template.abVariants.find(v => v.version === 'A');
-        const variantB = step.template.abVariants.find(v => v.version === 'B');
+      if (template.abVariants.length > 0 && template.abVariants.length >= 2) {
+        const variantA = template.abVariants.find(v => v.version === 'A');
+        const variantB = template.abVariants.find(v => v.version === 'B');
         const useB = variantB && Math.random() < 0.5;
         const selected = useB ? variantB! : variantA!;
-        subject = renderTemplate(selected.subject ?? step.template.subject ?? '', lead, lead.assignedTo);
-        body = renderTemplate(selected.body ?? step.template.body, lead, lead.assignedTo);
+        subject = renderTemplate(selected.subject ?? template.subject ?? '', lead, lead.assignedTo);
+        body = renderTemplate(selected.body ?? template.body, lead, lead.assignedTo);
 
-        await prisma.aBTestVariant.update({
+        await prisma.abTestVariant.update({
           where: { id: selected.id },
           data: { sentCount: { increment: 1 } },
         });
       } else {
-        subject = renderTemplate(step.template.subject ?? '', lead, lead.assignedTo);
-        body = renderTemplate(step.template.body, lead, lead.assignedTo);
+        subject = renderTemplate(template.subject ?? '', lead, lead.assignedTo);
+        body = renderTemplate(template.body, lead, lead.assignedTo);
       }
 
       try {

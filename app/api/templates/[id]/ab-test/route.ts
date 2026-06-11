@@ -17,12 +17,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Provide at least subjectB or bodyB' }, { status: 400 });
   }
 
-  const existingB = await prisma.aBTestVariant.findFirst({
+  const existingB = await prisma.abTestVariant.findFirst({
     where: { templateId: id, version: 'B' },
   });
 
   if (existingB) {
-    const updated = await prisma.aBTestVariant.update({
+    const updated = await prisma.abTestVariant.update({
       where: { id: existingB.id },
       data: {
         subject: subjectB ?? undefined,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json(updated);
   }
 
-  const variant = await prisma.aBTestVariant.create({
+  const variant = await prisma.abTestVariant.create({
     data: {
       templateId: id,
       version: 'B',
@@ -49,7 +49,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  await prisma.aBTestVariant.deleteMany({
+  await prisma.abTestVariant.deleteMany({
     where: { templateId: id, version: 'B' },
   });
 
