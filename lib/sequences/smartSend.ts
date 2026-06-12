@@ -19,9 +19,24 @@ const OPTIMAL_WINDOWS: Record<string, { start: number; end: number }> = {
 };
 
 export function isWithinBusinessHours(date: Date, timezone: string = 'UTC'): boolean {
-  const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-  const hour = tzDate.getHours();
-  return hour >= BUSINESS_HOUR_START && hour < BUSINESS_HOUR_END;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      hour12: false,
+    });
+    const hour = parseInt(formatter.format(date), 10);
+    return hour >= BUSINESS_HOUR_START && hour < BUSINESS_HOUR_END;
+  } catch (err) {
+    console.error(`[isWithinBusinessHours] Invalid timezone "${timezone}", falling back to UTC:`, err);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC',
+      hour: 'numeric',
+      hour12: false,
+    });
+    const hour = parseInt(formatter.format(date), 10);
+    return hour >= BUSINESS_HOUR_START && hour < BUSINESS_HOUR_END;
+  }
 }
 
 export function getOptimalSendTime(leadTimezone: string | null): { hour: number; minute: number } {
@@ -29,20 +44,6 @@ export function getOptimalSendTime(leadTimezone: string | null): { hour: number;
   const window = OPTIMAL_WINDOWS[leadTimezone];
   const hour = window.start + Math.floor(Math.random() * (window.end - window.start));
   return { hour, minute: Math.floor(Math.random() * 60) };
-}
-
-export function snapToBusinessHours(date: Date, timezone: string = 'UTC'): Date {
-  const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-  const hour = tzDate.getHours();
-  if (hour >= BUSINESS_HOUR_START && hour < BUSINESS_HOUR_END) return date;
-  const snapped = new Date(tzDate);
-  if (hour < BUSINESS_HOUR_START) {
-    snapped.setHours(BUSINESS_HOUR_START, 0, 0, 0);
-  } else {
-    snapped.setDate(snapped.getDate() + 1);
-    snapped.setHours(BUSINESS_HOUR_START, 0, 0, 0);
-  }
-  return new Date(snapped.toLocaleString('en-US', { timeZone: 'UTC' }));
 }
 
 export async function distributeSends(accountId: string): Promise<void> {
@@ -171,6 +172,7 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       let subject: string;
       let body: string;
 
+      let selectedVariantId: string | null = null;
       if (template.abVariants.length > 0 && template.abVariants.length >= 2) {
         const variantA = template.abVariants.find(v => v.version === 'A');
         const variantB = template.abVariants.find(v => v.version === 'B');
@@ -178,11 +180,7 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
         const selected = useB ? variantB! : variantA!;
         subject = renderTemplate(selected.subject ?? template.subject ?? '', lead, lead.assignedTo);
         body = renderTemplate(selected.body ?? template.body, lead, lead.assignedTo);
-
-        await prisma.abTestVariant.update({
-          where: { id: selected.id },
-          data: { sentCount: { increment: 1 } },
-        });
+        selectedVariantId = selected.id;
       } else {
         subject = renderTemplate(template.subject ?? '', lead, lead.assignedTo);
         body = renderTemplate(template.body, lead, lead.assignedTo);
@@ -209,6 +207,13 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
           where: { id: task.id },
           data: { status: 'completed', completedAt: new Date() },
         });
+
+        if (selectedVariantId) {
+          await prisma.abTestVariant.update({
+            where: { id: selectedVariantId },
+            data: { sentCount: { increment: 1 } },
+          });
+        }
 
         await prisma.lead.update({
           where: { id: lead.id },
