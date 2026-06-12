@@ -42,7 +42,7 @@ interface Task {
 }
 
 export default function DashboardPage() {
-  const { currentRole } = useAppContext();
+  const { isManager } = useAppContext();
   const { showToast } = useToast();
 
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
@@ -90,7 +90,7 @@ export default function DashboardPage() {
   }, []);
 
   const loadAll = useCallback(async () => {
-    const uid = currentRole !== 'sdr' ? selectedSdrId : undefined;
+    const uid = isManager ? selectedSdrId : undefined;
     const actParams = uid && uid !== 'all' ? `?limit=20&userId=${uid}` : '?limit=20';
     const fetches: Promise<any>[] = [
       fetchTasks('today', uid),
@@ -98,7 +98,7 @@ export default function DashboardPage() {
       fetchTasks('overdue', uid),
       fetch(`/api/activities${actParams}`).then((r) => (r.ok ? r.json() : [])),
     ];
-    if (currentRole === 'sdr') {
+    if (!isManager) {
       fetches.push(fetch('/api/leads').then((r) => (r.ok ? r.json() : [])));
     }
     const results = await Promise.all(fetches);
@@ -107,13 +107,13 @@ export default function DashboardPage() {
     setYesterdayTasks(Array.isArray(yesterday) ? yesterday : []);
     setOverdueTasks(Array.isArray(overdue) ? overdue : []);
     setActivities(Array.isArray(acts) ? acts : []);
-    if (currentRole === 'sdr' && results[4]) {
+    if (!isManager && results[4]) {
       const leadList: any[] = Array.isArray(results[4]) ? results[4] : [];
       const counts: Record<string, number> = {};
       leadList.forEach((l) => { counts[l.stage] = (counts[l.stage] ?? 0) + 1; });
       setSdrPipelineCounts(counts);
     }
-  }, [currentRole, selectedSdrId, fetchTasks]);
+  }, [isManager, selectedSdrId, fetchTasks]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -124,13 +124,13 @@ export default function DashboardPage() {
   }, [loadAll]);
 
   useEffect(() => {
-    if (currentRole !== 'sdr') {
+    if (isManager) {
       fetch('/api/users')
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => setUsers(Array.isArray(data) ? data : []))
         .catch(() => {});
     }
-  }, [currentRole]);
+  }, [isManager]);
 
   const completedTodayCount = todayTasks.filter((t) => t.status === 'completed').length;
   const pendingTodayCount = todayTasks.filter((t) => t.status === 'pending').length;
@@ -292,7 +292,7 @@ export default function DashboardPage() {
       ? overdueTasks
       : yesterdayTasks;
 
-  const sdrUsers = users.filter((u) => u.role === 'sdr');
+  const sdrUsers = users.filter((u) => u.role === 'sdr' || u.role === 'leadgen');
 
   return (
     <div className="space-y-6 flex-1 flex flex-col">
@@ -300,11 +300,11 @@ export default function DashboardPage() {
       <div className="page-hero flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
-            {currentRole === 'sdr' ? 'My Daily Tasks' : 'Team Tasks Dashboard'}
+            {!isManager ? 'My Daily Tasks' : 'Team Tasks Dashboard'}
           </h1>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {currentRole !== 'sdr' && sdrUsers.length > 0 && (
+          {isManager && sdrUsers.length > 0 && (
             <div className="flex items-center gap-2 bg-card-bg border border-card-border p-1.5 rounded-xl">
               <span className="text-xs font-bold font-mono text-text-muted pl-2 uppercase">Rep:</span>
               <select
@@ -554,7 +554,7 @@ export default function DashboardPage() {
         {/* Right column: stats panel (toggleable) */}
         {showStats && (
           <div className="space-y-6">
-            {currentRole === 'sdr' && (
+            {!isManager && (
               <div className="glass-card rounded-2xl p-5 space-y-4">
                 <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                   <Award className="w-5 h-5 text-brand-gold" aria-hidden="true" />
