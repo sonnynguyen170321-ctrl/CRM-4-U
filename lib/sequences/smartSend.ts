@@ -54,20 +54,19 @@ export async function distributeSends(accountId: string): Promise<void> {
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  if (account.dailySendDate && account.dailySendDate < today) {
-    await prisma.emailAccount.update({
-      where: { id: accountId },
-      data: { dailySendCount: 0, hourlySendWindow: 0 },
-    });
-  }
-
   const currentHour = now.getHours();
   const windowStart = Math.floor(currentHour / 2) * 2;
-  if (account.hourlySendWindow !== windowStart) {
+
+  const isNewDay = !account.dailySendDate || account.dailySendDate < today;
+  const isNewWindow = account.hourlySendWindow !== windowStart;
+
+  if (isNewDay || isNewWindow) {
     await prisma.emailAccount.update({
       where: { id: accountId },
-      data: { hourlySendWindow: windowStart, dailySendCount: { increment: account.dailySendCount } },
+      data: {
+        ...(isNewDay && { dailySendCount: 0, dailySendDate: today }),
+        hourlySendWindow: windowStart,
+      },
     });
   }
 }
@@ -197,7 +196,6 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
           text: body,
           html: body.replace(/\n/g, '<br>'),
         });
-
         await incrementSendCount(account.id);
       } catch (sendErr) {
         await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
@@ -206,41 +204,46 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
         continue;
       }
 
-      await prisma.task.update({
-        where: { id: task.id },
-        data: { status: 'completed', completedAt: new Date() },
-      });
+      try {
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { status: 'completed', completedAt: new Date() },
+        });
 
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: {
-          lastContactedAt: new Date(),
-          emailSentCount: { increment: 1 },
-        },
-      });
-
-      await prisma.activity.create({
-        data: {
-          userId: lead.assignedToId,
-          leadId: lead.id,
-          type: 'email_sent',
-          channel: 'email',
-          description: lead.timezone
-            ? `Smart-sent at ${new Date().toLocaleTimeString('en-US', { timeZone: lead.timezone })} ${lead.timezone}`
-            : 'Auto-sent sequence email',
-          metadata: {
-            auto: true,
-            accountId: account.id,
-            subject,
-            taskId: task.id,
-            timezone: lead.timezone,
-            sequenceStep: step.order,
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            lastContactedAt: new Date(),
+            emailSentCount: { increment: 1 },
           },
-        },
-      });
+        });
 
-      await advanceSequence(task, lead.assignedToId);
-      sent++;
+        await prisma.activity.create({
+          data: {
+            userId: lead.assignedToId,
+            leadId: lead.id,
+            type: 'email_sent',
+            channel: 'email',
+            description: lead.timezone
+              ? `Smart-sent at ${new Date().toLocaleTimeString('en-US', { timeZone: lead.timezone })} ${lead.timezone}`
+              : 'Auto-sent sequence email',
+            metadata: {
+              auto: true,
+              accountId: account.id,
+              subject,
+              taskId: task.id,
+              timezone: lead.timezone,
+              sequenceStep: step.order,
+            },
+          },
+        });
+
+        await advanceSequence(task, lead.assignedToId);
+        sent++;
+      } catch (dbErr) {
+        console.error(`[smart-send] DB update failed for task ${task.id} after successful email send:`, dbErr);
+        sent++;
+      }
     } catch (err) {
       console.error(`[smart-send] task ${task.id} failed:`, err);
       errors.push(task.id);

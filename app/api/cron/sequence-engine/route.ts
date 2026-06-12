@@ -68,20 +68,32 @@ export async function GET(req: NextRequest) {
       });
       if (claimed.count !== 1) continue;
 
-      await EmailService.fromAccount(account).send({
-        from: account.email,
-        to: task.lead.email,
-        subject: task.title,
-        text: task.description ?? '',
-      });
+      try {
+        await EmailService.fromAccount(account).send({
+          from: account.email,
+          to: task.lead.email,
+          subject: task.title,
+          text: task.description ?? '',
+        });
+      } catch (sendErr) {
+        console.error(`[sequence-engine] Failed to send email for task ${task.id}:`, sendErr);
+        await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
+        result.errors.push(task.id);
+        continue;
+      }
 
-      await prisma.task.update({
-        where: { id: task.id },
-        data: { status: 'completed', completedAt: new Date() },
-      });
-      result.sent++;
-    } catch {
-      await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
+      try {
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { status: 'completed', completedAt: new Date() },
+        });
+        result.sent++;
+      } catch (dbErr) {
+        console.error(`[sequence-engine] Failed to mark task ${task.id} as completed after sending:`, dbErr);
+        result.sent++;
+      }
+    } catch (err) {
+      console.error(`[sequence-engine] Error processing manual task ${task.id}:`, err);
       result.errors.push(task.id);
     }
   }

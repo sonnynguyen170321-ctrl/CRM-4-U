@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   // NextAuth v5 sets one of these two cookie names depending on HTTPS
   const hasSession =
     req.cookies.has('__Secure-authjs.session-token') ||
