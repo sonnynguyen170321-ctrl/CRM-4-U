@@ -32,14 +32,14 @@ function createPrismaClient() {
   return client.$extends(auditExtension).$extends({
     query: {
       $allModels: {
-        async $allOperations({ model, operation, args, query }) {
+        async $allOperations({ model, operation, args, query }: { model?: string; operation: string; args: any; query: (args: any) => Promise<any> }) {
           if (!model) {
             return query(args);
           }
 
           // 1. Resolve tenant context
           const store = tenantStorage.getStore();
-          let tenantId = store?.tenantId;
+          let tenantId: string | null | undefined = store?.tenantId;
           let bypassRls = store?.bypassRls;
 
           if (!store) {
@@ -67,7 +67,7 @@ function createPrismaClient() {
             const [, result] = await client.$transaction([
               client.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`,
               query(args),
-            ]);
+            ] as any);
             return result;
           }
 
@@ -116,7 +116,7 @@ function createPrismaClient() {
             client.$executeRaw`SELECT set_config('app.bypass_rls', 'false', true)`,
             client.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
             query(args),
-          ]);
+          ] as any);
           return result;
         },
       },
