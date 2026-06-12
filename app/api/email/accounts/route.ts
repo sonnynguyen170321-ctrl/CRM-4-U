@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       imapPort: body.imapPort ? (parseInt(body.imapPort, 10) || null) : null,
       smtpServer: smtpHost ?? null,
       smtpPort: body.smtpPort ? (parseInt(body.smtpPort, 10) || null) : null,
-      encPassword: body.password ? encrypt(body.password) : null,
+      encPassword: body.password ? await encrypt(body.password) : null,
     },
     select: {
       id: true,

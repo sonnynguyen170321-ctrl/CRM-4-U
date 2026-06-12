@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
       if (claimed.count !== 1) continue;
 
       try {
-        await EmailService.fromAccount(account).send({
+        const service = await EmailService.fromAccount(account);
+        await service.send({
           from: account.email,
           to: task.lead.email,
           subject: task.title,

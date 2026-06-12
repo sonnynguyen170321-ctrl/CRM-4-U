@@ -187,7 +187,8 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       }
 
       try {
-        await EmailService.fromAccount(account).send({
+        const service = await EmailService.fromAccount(account);
+        await service.send({
           from: account.email,
           to: lead.email,
           subject,

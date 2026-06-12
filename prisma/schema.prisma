@@ -130,6 +130,7 @@ model User {
   sequences      Sequence[]
   templates      Template[]
   campaignSdrs   CampaignSdr[]
+  auditLogs      AuditLog[]
 }
 
 // ─── Clients & Campaigns ─────────────────────────────────────────────────────
@@ -414,3 +415,23 @@ model Notification {
   @@index([userId])
   @@index([isRead])
 }
+
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String   // e.g. "update_lead", "create_lead", "connect_email"
+  tableName     String
+  recordId      String
+  changedFields Json?    // { "field": { "old": "x", "new": "y" } }
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([tableName, recordId])
+  @@index([createdAt])
+}
+

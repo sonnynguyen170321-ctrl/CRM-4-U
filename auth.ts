@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import { compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { authConfig } from './auth.config';
@@ -7,6 +8,11 @@ import { authConfig } from './auth.config';
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
+    MicrosoftEntraID({
+      clientId: process.env.MICROSOFT_CLIENT_ID || 'dummy-id',
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET || 'dummy-secret',
+      issuer: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID || 'common'}/v2.0`,
+    }),
     Credentials({
       name: 'credentials',
       credentials: {
@@ -43,4 +49,49 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    async signIn({ user, account }) {
+      if (account?.provider === 'microsoft-entra-id') {
+        if (!user.email) return false;
+
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        // Restrict SSO sign-ins only to pre-registered Active Users
+        if (!existingUser || !existingUser.isActive) {
+          return false;
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
+      if (user) {
+        if (account?.provider === 'microsoft-entra-id' && user.email) {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email },
+          });
+          if (dbUser) {
+            const reportsCount = await prisma.user.count({
+              where: { managerId: dbUser.id, isActive: true },
+            });
+            token.id = dbUser.id;
+            token.firstName = dbUser.firstName;
+            token.lastName = dbUser.lastName;
+            token.role = dbUser.role;
+            token.isManager = reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(dbUser.role);
+            return token;
+          }
+        }
+        token.id = user.id;
+        token.firstName = (user as any).firstName;
+        token.lastName = (user as any).lastName;
+        token.role = (user as any).role;
+        token.isManager = (user as any).isManager;
+      }
+      return token;
+    },
+  },
 });
+

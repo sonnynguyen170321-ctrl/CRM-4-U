@@ -49,7 +49,7 @@ export class EmailService {
     return this.adapter.fetchMessagesSince(since);
   }
 
-  static fromAccount(account: EmailAccount): EmailService {
+  static async fromAccount(account: EmailAccount): Promise<EmailService> {
     switch (account.provider) {
       case 'gmail':
         return new EmailService(
@@ -73,7 +73,7 @@ export class EmailService {
         return new EmailService(
           new ImapAdapter({
             email: account.email,
-            password: decrypt(account.encPassword!),
+            password: await decrypt(account.encPassword!),
             smtpServer: account.smtpServer!,
             smtpPort: account.smtpPort ?? 465,
             imapServer: account.imapServer ?? undefined,

@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from 'next-auth';
+import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 
 // Edge-compatible auth config — no Prisma, no bcrypt.
 // Used by proxy.ts to validate JWT tokens without importing heavy Node.js modules.
@@ -7,7 +8,13 @@ export const authConfig: NextAuthConfig = {
   trustHost: true,
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
-  providers: [],
+  providers: [
+    MicrosoftEntraID({
+      clientId: process.env.MICROSOFT_CLIENT_ID || 'dummy-id',
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET || 'dummy-secret',
+      issuer: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID || 'common'}/v2.0`,
+    }),
+  ],
   callbacks: {
     authorized({ auth }) {
       return !!auth?.user;

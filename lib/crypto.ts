@@ -12,8 +12,44 @@ function getKey(): Buffer {
   return Buffer.from(hex, 'hex');
 }
 
-/** Encrypt a plaintext string. Returns a base64 string: iv + authTag + ciphertext. */
-export function encrypt(plaintext: string): string {
+/** Encrypt a plaintext string. Returns a base64 string: iv + authTag + ciphertext (local) or kms:payload. */
+export async function encrypt(plaintext: string): Promise<string> {
+  const kmsKeyArn = process.env.KMS_KEY_ARN;
+
+  if (kmsKeyArn) {
+    try {
+      // @ts-ignore
+      const { KMSClient, GenerateDataKeyCommand } = await import('@aws-sdk/client-kms');
+      const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      const kmsResponse = await kms.send(
+        new GenerateDataKeyCommand({
+          KeyId: kmsKeyArn,
+          KeySpec: 'AES_256',
+        })
+      );
+
+      const rawDEK = kmsResponse.Plaintext!;
+      const encryptedDEK = kmsResponse.CiphertextBlob!;
+
+      const iv = randomBytes(IV_LENGTH);
+      const cipher = createCipheriv(ALGORITHM, rawDEK, iv);
+      const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+
+      const payload = {
+        dek: Buffer.from(encryptedDEK).toString('base64'),
+        iv: iv.toString('base64'),
+        tag: tag.toString('base64'),
+        ciphertext: encrypted.toString('base64'),
+      };
+
+      return 'kms:' + Buffer.from(JSON.stringify(payload)).toString('base64');
+    } catch (err) {
+      console.error('[crypto] AWS KMS encryption failed, falling back to local encryption:', err);
+    }
+  }
+
+  // Fallback / Local encryption
   const key = getKey();
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, key, iv);
@@ -23,7 +59,36 @@ export function encrypt(plaintext: string): string {
 }
 
 /** Decrypt a base64 string produced by encrypt(). Returns plaintext. */
-export function decrypt(encoded: string): string {
+export async function decrypt(encoded: string): Promise<string> {
+  if (encoded.startsWith('kms:')) {
+    try {
+      const rawPayload = Buffer.from(encoded.substring(4), 'base64').toString('utf8');
+      const payload = JSON.parse(rawPayload);
+
+      // @ts-ignore
+      const { KMSClient, DecryptCommand } = await import('@aws-sdk/client-kms');
+      const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
+
+      const kmsResponse = await kms.send(
+        new DecryptCommand({
+          CiphertextBlob: Buffer.from(payload.dek, 'base64'),
+        })
+      );
+
+      const rawDEK = kmsResponse.Plaintext!;
+      const iv = Buffer.from(payload.iv, 'base64');
+      const tag = Buffer.from(payload.tag, 'base64');
+      const ciphertext = Buffer.from(payload.ciphertext, 'base64');
+
+      const decipher = createDecipheriv(ALGORITHM, rawDEK, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+    } catch (err) {
+      console.error('[crypto] AWS KMS decryption failed, trying local decryption fallback:', err);
+    }
+  }
+
+  // Local / Fallback decryption
   const key = getKey();
   const buf = Buffer.from(encoded, 'base64');
   const iv = buf.subarray(0, IV_LENGTH);
@@ -33,3 +98,4 @@ export function decrypt(encoded: string): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 }
+

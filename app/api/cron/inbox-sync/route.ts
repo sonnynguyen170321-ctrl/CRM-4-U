@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
   for (const account of accounts) {
     try {
       const since = account.lastSyncAt ?? new Date(now.getTime() - FIRST_SYNC_WINDOW_MS);
-      const messages = await EmailService.fromAccount(account).fetchMessagesSince(since);
+      const service = await EmailService.fromAccount(account);
+      const messages = await service.fetchMessagesSince(since);
       if (messages === null) {
         // Adapter doesn't support sync — don't retry it every run
         await prisma.emailAccount.update({

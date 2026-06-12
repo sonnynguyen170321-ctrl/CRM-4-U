@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const emailService = EmailService.fromAccount(account);
+    const emailService = await EmailService.fromAccount(account);
     await emailService.send({
       from: account.email,
       to: body.to,
