@@ -12,6 +12,7 @@ import {
   Settings,
   Target,
   TrendingUp,
+  Cpu,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
@@ -33,6 +34,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     ...(userRole === 'leadgen' ? [{ name: 'Leadgen', href: '/leadgen', icon: Target }] : []),
     // Team View visible for any manager (including Dominic, who has isManager=true)
     ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
+    ...(isManager ? [{ name: 'Automation', href: '/automation', icon: Cpu }] : []),
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
