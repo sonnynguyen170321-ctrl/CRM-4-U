@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { snapToBusinessDay } from '@/lib/dates/businessDays';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
+import { inngest } from '@/lib/inngest/client';
 
 /**
  * Sequence execution engine (SKILL.md §3).
@@ -47,6 +48,19 @@ export async function createTaskForStep(
     where: { id: lead.id },
     data: { nextTaskDue: dueDate },
   });
+
+  // Dynamically schedule execution in Inngest if the step is an automated email task
+  if (task.type === 'email' && step.autoComplete) {
+    try {
+      await inngest.send({
+        name: 'crm/task.execute',
+        data: { taskId: task.id },
+        ts: dueDate.getTime(),
+      });
+    } catch (err) {
+      console.error(`[createTaskForStep] Failed to enqueue Inngest execution for task ${task.id}:`, err);
+    }
+  }
 
   return task;
 }
