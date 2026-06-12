@@ -119,6 +119,8 @@ model User {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assignedLeads  Lead[]         @relation("LeadAssignee")
   tasks          Task[]
@@ -131,6 +133,8 @@ model User {
   templates      Template[]
   campaignSdrs   CampaignSdr[]
   auditLogs      AuditLog[]
+
+  @@index([tenantId])
 }
 
 // ─── Clients & Campaigns ─────────────────────────────────────────────────────
@@ -144,8 +148,12 @@ model Client {
   status       ClientStatus @default(active)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   campaigns Campaign[]
+
+  @@index([tenantId])
 }
 
 model Campaign {
@@ -160,9 +168,13 @@ model Campaign {
   endDate        DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   leads        Lead[]
   campaignSdrs CampaignSdr[]
+
+  @@index([tenantId])
 }
 
 model CampaignSdr {
@@ -170,8 +182,11 @@ model CampaignSdr {
   userId     String
   campaign   Campaign @relation(fields: [campaignId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([campaignId, userId])
+  @@index([tenantId])
 }
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -207,6 +222,8 @@ model Lead {
   emailReplyCount Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   tasks      Task[]
   notes      Note[]
@@ -217,6 +234,7 @@ model Lead {
   @@index([assignedToId])
   @@index([campaignId])
   @@index([priority])
+  @@index([tenantId])
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -231,10 +249,14 @@ model Sequence {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   steps      SequenceStep[]
   leads      Lead[]
   activities Activity[]
+
+  @@index([tenantId])
 }
 
 model SequenceStep {
@@ -249,8 +271,11 @@ model SequenceStep {
   template     Template? @relation(fields: [templateId], references: [id])
   instructions String?
   autoComplete Boolean  @default(false)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([sequenceId])
+  @@index([tenantId])
 }
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
@@ -277,11 +302,14 @@ model Task {
   priority     TaskPriority @default(medium)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
   @@index([userId])
   @@index([dueDate])
   @@index([status])
+  @@index([tenantId])
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -297,9 +325,13 @@ model Template {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   sequenceSteps SequenceStep[]
   abVariants    AbTestVariant[]
+
+  @@index([tenantId])
 }
 
 model AbTestVariant {
@@ -312,8 +344,11 @@ model AbTestVariant {
   sentCount  Int      @default(0)
   replyCount Int      @default(0)
   createdAt  DateTime @default(now())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
+  @@index([tenantId])
 }
 
 // ─── Notes ───────────────────────────────────────────────────────────────────
@@ -328,8 +363,11 @@ model Note {
   isPinned    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
+  @@index([tenantId])
 }
 
 // ─── Reminders ───────────────────────────────────────────────────────────────
@@ -344,9 +382,12 @@ model Reminder {
   dueAt       DateTime
   isDismissed Boolean   @default(false)
   createdAt   DateTime  @default(now())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([dueAt])
+  @@index([tenantId])
 }
 
 // ─── Activities ──────────────────────────────────────────────────────────────
@@ -364,11 +405,14 @@ model Activity {
   metadata    Json?
   description String?
   createdAt   DateTime     @default(now())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([leadId])
   @@index([type])
   @@index([createdAt])
+  @@index([tenantId])
 }
 
 // ─── Email Accounts ──────────────────────────────────────────────────────────
@@ -395,8 +439,11 @@ model EmailAccount {
   hourlySendWindow Int           @default(0)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([tenantId])
 }
 
 // ─── Notifications ───────────────────────────────────────────────────────────
@@ -411,9 +458,12 @@ model Notification {
   linkTo    String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
+  @@index([tenantId])
 }
 
 // ─── Audit Logs ──────────────────────────────────────────────────────────────
@@ -429,9 +479,38 @@ model AuditLog {
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([tableName, recordId])
   @@index([createdAt])
+  @@index([tenantId])
+}
+
+// ─── Tenant ──────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  clients       Client[]
+  campaigns     Campaign[]
+  campaignSdrs  CampaignSdr[]
+  leads         Lead[]
+  sequences     Sequence[]
+  sequenceSteps SequenceStep[]
+  tasks         Task[]
+  templates     Template[]
+  abVariants    AbTestVariant[]
+  notes         Note[]
+  reminders     Reminder[]
+  activities    Activity[]
+  emailAccounts EmailAccount[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
 }
 

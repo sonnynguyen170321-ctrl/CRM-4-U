@@ -45,6 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           lastName: user.lastName,
           role: user.role,
           isManager: reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(user.role),
+          tenantId: user.tenantId,
         };
       },
     }),
@@ -81,6 +82,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             token.lastName = dbUser.lastName;
             token.role = dbUser.role;
             token.isManager = reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(dbUser.role);
+            token.tenantId = dbUser.tenantId;
             return token;
           }
         }
@@ -89,6 +91,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.lastName = (user as any).lastName;
         token.role = (user as any).role;
         token.isManager = (user as any).isManager;
+        token.tenantId = (user as any).tenantId;
       }
       return token;
     },

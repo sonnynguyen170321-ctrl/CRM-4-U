@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { tenantStorage } from './tenant-context';
 
 export const auditExtension = Prisma.defineExtension((client) => {
   return client.$extends({
@@ -15,6 +16,10 @@ export const auditExtension = Prisma.defineExtension((client) => {
                            (args.data as any).userId || 
                            null;
             
+            const tenantId = (result as any).tenantId || 
+                             (args.data as any).tenantId || 
+                             tenantStorage.getStore()?.tenantId || 
+                             'default-tenant';
             await (client as any).auditLog.create({
               data: {
                 userId: userId || null,
@@ -22,6 +27,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
                 tableName: model,
                 recordId: (result as any).id || '',
                 changedFields: args.data || {},
+                tenantId,
               },
             });
           } catch (err) {
@@ -66,6 +72,11 @@ export const auditExtension = Prisma.defineExtension((client) => {
                              currentData?.createdById || 
                              null;
 
+              const tenantId = currentData?.tenantId || 
+                               (result as any).tenantId || 
+                               (args.data as any).tenantId || 
+                               tenantStorage.getStore()?.tenantId || 
+                               'default-tenant';
               await (client as any).auditLog.create({
                 data: {
                   userId: userId || null,
@@ -73,6 +84,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
                   tableName: model,
                   recordId: (result as any).id || (args.where as any).id || '',
                   changedFields,
+                  tenantId,
                 },
               });
             }
@@ -101,6 +113,9 @@ export const auditExtension = Prisma.defineExtension((client) => {
                            currentData?.createdById || 
                            null;
             
+            const tenantId = currentData?.tenantId || 
+                             tenantStorage.getStore()?.tenantId || 
+                             'default-tenant';
             await (client as any).auditLog.create({
               data: {
                 userId: userId || null,
@@ -108,6 +123,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
                 tableName: model,
                 recordId: (result as any).id || (args.where as any).id || '',
                 changedFields: currentData || {},
+                tenantId,
               },
             });
           } catch (err) {

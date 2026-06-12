@@ -1,6 +1,7 @@
-import { PrismaNeonHttp } from '@prisma/adapter-neon';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { auditExtension } from './audit';
+import { tenantStorage } from './tenant-context';
+export { tenantStorage };
 
 // PrismaNeonHttp uses Neon's HTTP transport instead of a persistent TCP connection.
 // This eliminates the TCP handshake + PG auth overhead on every Vercel cold invocation,
@@ -8,15 +9,122 @@ import { auditExtension } from './audit';
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
+async function getTenantIdFromSession(): Promise<string | null> {
+  try {
+    // Run the auth() call in a context where RLS is bypassed to prevent recursive DB calls
+    return await tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, async () => {
+      const { auth } = await import('@/auth');
+      const session = await auth();
+      return (session?.user as any)?.tenantId || null;
+    });
+  } catch (err) {
+    // Fail silently when cookies/headers are not available (e.g. outside request context)
+    return null;
+  }
+}
+
 function createPrismaClient() {
-  const adapter = new PrismaNeonHttp(process.env.DATABASE_URL!, {});
+  // Switch to the native Prisma TCP engine to support interactive transactions for Row-Level Security
   const client = new PrismaClient({
-    adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
-  return client.$extends(auditExtension) as any;
+
+  return client.$extends(auditExtension).$extends({
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          if (!model) {
+            return query(args);
+          }
+
+          // 1. Resolve tenant context
+          const store = tenantStorage.getStore();
+          let tenantId = store?.tenantId;
+          let bypassRls = store?.bypassRls;
+
+          if (!store) {
+            tenantId = await getTenantIdFromSession();
+          }
+
+          const isLocalOrScript =
+            !process.env.NEXT_PHASE &&
+            (process.env.NODE_ENV !== 'production' || process.env.BYPASS_RLS === 'true');
+
+          if (!tenantId && isLocalOrScript) {
+            bypassRls = true;
+          }
+
+          // 2. If bypassing RLS, run the query directly with bypass flag set in session
+          if (bypassRls || !tenantId) {
+            if (!tenantId && !isLocalOrScript) {
+              // Secure by default: return empty/error in production if no context is found
+              if (operation.startsWith('find') || operation.startsWith('get')) {
+                return operation.endsWith('Many') ? [] : null;
+              }
+              throw new Error(`Unauthorized: No tenant context active for operation ${operation} on model ${model}`);
+            }
+
+            const [, result] = await client.$transaction([
+              client.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`,
+              query(args),
+            ]);
+            return result;
+          }
+
+          // 3. Inject tenantId filter to query arguments (Primary isolation layer for superusers)
+          if (operation.startsWith('find') || operation === 'count' || operation === 'aggregate' || operation === 'groupBy') {
+            args.where = {
+              ...args.where,
+              tenantId,
+            };
+          } else if (operation === 'create') {
+            args.data = {
+              ...args.data,
+              tenantId,
+            };
+          } else if (operation === 'update' || operation === 'upsert') {
+            args.where = {
+              ...args.where,
+              tenantId,
+            };
+            if (args.data) {
+              args.data = {
+                ...args.data,
+                tenantId,
+              };
+            }
+          } else if (operation === 'delete' || operation === 'deleteMany') {
+            args.where = {
+              ...args.where,
+              tenantId,
+            };
+          } else if (operation === 'updateMany') {
+            args.where = {
+              ...args.where,
+              tenantId,
+            };
+            if (args.data) {
+              args.data = {
+                ...args.data,
+                tenantId,
+              };
+            }
+          }
+
+          // 4. Run inside database transaction setting the RLS parameters (Secondary isolation layer)
+          const [, , result] = await client.$transaction([
+            client.$executeRaw`SELECT set_config('app.bypass_rls', 'false', true)`,
+            client.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
+            query(args),
+          ]);
+          return result;
+        },
+      },
+    },
+  });
 }
 
 // Reuse across hot-reloads in development to avoid exhausting connections.
 export const prisma: PrismaClient = globalForPrisma.prisma ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+

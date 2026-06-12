@@ -26,6 +26,7 @@ export const authConfig: NextAuthConfig = {
         token.lastName = (user as any).lastName;
         token.role = (user as any).role;
         token.isManager = (user as any).isManager;
+        token.tenantId = (user as any).tenantId;
       }
       return token;
     },
@@ -36,6 +37,7 @@ export const authConfig: NextAuthConfig = {
         (session.user as any).lastName = token.lastName;
         (session.user as any).role = token.role;
         (session.user as any).isManager = token.isManager;
+        (session.user as any).tenantId = token.tenantId;
       }
       return session;
     },
