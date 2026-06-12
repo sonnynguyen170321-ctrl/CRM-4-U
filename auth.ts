@@ -28,12 +28,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         if (!passwordMatch) return null;
 
+        const reportsCount = await prisma.user.count({
+          where: { managerId: user.id, isActive: true },
+        });
+
         return {
           id: user.id,
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          isManager: reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(user.role),
         };
       },
     }),

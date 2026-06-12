@@ -21,7 +21,7 @@ interface SidebarProps {
 
 export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
   const pathname = usePathname();
-  const { currentUser } = useAppContext();
+  const { currentUser, isManager } = useAppContext();
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -31,8 +31,8 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     { name: 'Templates', href: '/templates', icon: FileText },
     // Leadgen gets their own view instead of Team View
     ...(userRole === 'leadgen' ? [{ name: 'Leadgen', href: '/leadgen', icon: Target }] : []),
-    // Team View visible for Director, Floor Manager, and Team Lead (not SDR, not Leadgen)
-    ...(userRole !== 'sdr' && userRole !== 'leadgen' ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
+    // Team View visible for any manager (including Dominic, who has isManager=true)
+    ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

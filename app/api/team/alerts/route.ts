@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const userOrRes = await requireRole('team_lead');
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 

@@ -598,11 +598,11 @@ export default function CSVImportModal({ onClose, onSuccess }: Props) {
                 </p>
 
                 <div>
-                  <label className={labelClass}>Assign to SDR</label>
+                  <label className={labelClass}>Assign to Rep</label>
                   <select value={assignSdr} onChange={(e) => setAssignSdr(e.target.value)} className={inputClass}>
                     <option value="">— Current user (default) —</option>
-                    {users.filter((u) => u.role === 'sdr').map((u) => (
-                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    {users.filter((u) => u.role === 'sdr' || u.role === 'leadgen').map((u) => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.role.replace('_', ' ')})</option>
                     ))}
                   </select>
                 </div>

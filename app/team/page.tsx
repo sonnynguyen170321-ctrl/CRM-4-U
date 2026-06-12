@@ -21,7 +21,7 @@ interface User {
 }
 
 export default function TeamViewPage() {
-  const { currentRole } = useAppContext();
+  const { currentRole, isManager } = useAppContext();
   const { showToast } = useToast();
 
   // Navigation states
@@ -355,9 +355,8 @@ ${detail.sequences && detail.sequences.length > 0 ? `
     return true;
   });
 
-  // Guard: Leadgen and SDR roles are restricted from overview features
-  // (Leadgen gets redirected to dashboard, SDR bypasses the Overview lists)
-  if (currentRole === 'leadgen') {
+  // Guard: Restricted to managers (or leadgen managers with reports)
+  if (!isManager) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-md mx-auto my-12 animate-in fade-in duration-300">
         <div className="w-16 h-16 bg-brand-red/10 border border-brand-red/25 rounded-2xl flex items-center justify-center text-brand-red">

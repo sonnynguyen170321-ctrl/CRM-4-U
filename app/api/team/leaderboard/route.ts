@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // restricted to managers (team_lead and above)
-  const userOrRes = await requireRole('team_lead');
+  // restricted to managers (team_lead/leadgen manager and above)
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     }
   });
 
-  const scopedUsers = allUsers.filter((u) => targetIds.includes(u.id) && ['sdr', 'team_lead', 'floor_manager'].includes(u.role));
+  const scopedUsers = allUsers.filter((u) => targetIds.includes(u.id) && ['sdr', 'team_lead', 'floor_manager', 'leadgen'].includes(u.role));
 
   const leaderboard = scopedUsers.map((u) => {
     const userActs = activities.filter((a) => a.userId === u.id);

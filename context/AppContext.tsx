@@ -10,6 +10,7 @@ interface AppContextType {
   setRole: (role: UserRole) => void;
   currentUserId: string;
   currentUser: { firstName: string; lastName: string; email: string } | null;
+  isManager: boolean;
   activeNewModal: 'lead' | 'task' | 'reminder' | 'campaign' | null;
   setActiveNewModal: (type: 'lead' | 'task' | 'reminder' | 'campaign' | null) => void;
   isSessionLoading: boolean;
@@ -36,6 +37,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isDemoMode = process.env.NODE_ENV !== 'production';
   const currentRole: UserRole = overrideRole ?? sessionRole ?? (isDemoMode ? 'director' : 'sdr');
   const currentUserId: string = (session?.user as any)?.id ?? (isDemoMode ? 'u1' : '');
+  const isManager: boolean = (session?.user as any)?.isManager ?? (isDemoMode ? true : false);
   const currentUser = session?.user
     ? {
         firstName: (session.user as any).firstName ?? '',
@@ -60,6 +62,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setRole,
         currentUserId,
         currentUser,
+        isManager,
         activeNewModal,
         setActiveNewModal,
         isSessionLoading: status === 'loading',

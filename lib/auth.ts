@@ -8,6 +8,7 @@ export type SessionUser = {
   firstName: string;
   lastName: string;
   role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
+  isManager?: boolean;
 };
 
 /** Get the authenticated session user from a Server Component or API route. */
@@ -36,6 +37,17 @@ export async function requireRole(
   const requiredLevel = hierarchy.indexOf(minRole);
 
   if (userLevel < requiredLevel) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return user;
+}
+
+/** Require a manager role (director, floor_manager, team_lead, or any user with isManager=true) in an API route. */
+export async function requireManager(): Promise<SessionUser | NextResponse> {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (user.role !== 'director' && user.role !== 'floor_manager' && user.role !== 'team_lead' && !user.isManager) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   return user;
