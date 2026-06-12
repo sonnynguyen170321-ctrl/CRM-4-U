@@ -6,7 +6,6 @@ import {
   Send,
   MessageSquare,
   AlertTriangle,
-  ChevronDown,
   BarChart3,
   Clock,
 } from 'lucide-react';

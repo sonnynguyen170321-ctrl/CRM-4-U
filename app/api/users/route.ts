@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/auth';
+import { requireRole, getVisibleUserIds, type SessionUser } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { parseBody } from '@/lib/validation/core';
 import { createUserSchema } from '@/lib/validation/schemas';
@@ -8,9 +8,14 @@ import { createUserSchema } from '@/lib/validation/schemas';
 export async function GET() {
   const userOrRes = await requireRole('leadgen');
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
+  const visibleIds = await getVisibleUserIds(user);
 
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(visibleIds ? { id: { in: visibleIds } } : {}),
+    },
     select: {
       id: true,
       email: true,

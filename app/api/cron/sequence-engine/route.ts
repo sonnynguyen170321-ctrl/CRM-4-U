@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionUser } from '@/lib/auth';
 import { EmailService } from '@/lib/email/EmailService';
-import { renderTemplate } from '@/lib/templates/render';
-import { advanceSequence } from '@/lib/sequences/engine';
-import { scheduleSmartSends, isWithinBusinessHours, distributeSends } from '@/lib/sequences/smartSend';
+import { scheduleSmartSends, distributeSends } from '@/lib/sequences/smartSend';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const LOCK_STALE_MS = 10 * 60 * 1000;
-const DAILY_AUTO_SEND_CAP = 50;
 
 export async function GET(req: NextRequest) {
   const authorized =

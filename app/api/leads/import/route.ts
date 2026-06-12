@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { createTaskForStep } from '@/lib/sequences/engine';
@@ -145,6 +145,9 @@ export async function POST(req: NextRequest) {
 
   // Real import
   const assignedToId = body.assignedToId || user.id;
+  if (assignedToId !== user.id && !(await canAccessUser(user, assignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const initialStage = (body.initialStage || 'new') as 'new' | 'sequence_active';
   const campaignId = body.campaignId;
   if (!campaignId) {

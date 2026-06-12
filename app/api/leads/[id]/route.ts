@@ -76,6 +76,10 @@ export async function PUT(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  if (body.assignedToId !== undefined && body.assignedToId !== null && body.assignedToId !== user.id && !(await canAccessUser(user, body.assignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const updated = await prisma.lead.update({
     where: { id },
     data: {
@@ -199,8 +203,7 @@ export async function DELETE(
   const lead = await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true } });
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isManager = user.role === 'director' || user.role === 'floor_manager';
-  if (!isManager && lead.assignedToId !== user.id) {
+  if (!(await canAccessUser(user, lead.assignedToId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

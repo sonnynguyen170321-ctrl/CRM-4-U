@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, getVisibleUserIds } from '@/lib/auth';
+import { requireAuth, getVisibleUserIds, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { parseBody, capLimit } from '@/lib/validation/core';
@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, createLeadSchema);
   if (parsed.error) return parsed.error;
   const body = parsed.data;
+
+  const targetAssignedToId = body.assignedToId ?? user.id;
+  if (targetAssignedToId !== user.id && !(await canAccessUser(user, targetAssignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     // No explicit priority → derive it from the AI lead score (hot/warm/cold)

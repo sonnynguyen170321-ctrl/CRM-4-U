@@ -5,9 +5,7 @@ import { advanceSequence } from './engine';
 
 const BUSINESS_HOUR_START = 9;
 const BUSINESS_HOUR_END = 17;
-const MAX_SENDS_PER_HOUR = 10;
 const MAX_SENDS_PER_DAY = 80;
-const MAX_SENDS_PER_ACCOUNT_PER_HOUR = 6;
 const OPTIMAL_WINDOWS: Record<string, { start: number; end: number }> = {
   'America/New_York': { start: 9, end: 11 },
   'America/Chicago': { start: 9, end: 11 },

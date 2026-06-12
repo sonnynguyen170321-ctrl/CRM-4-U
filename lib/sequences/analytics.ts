@@ -67,17 +67,10 @@ export async function getSequenceAnalytics(sequenceId: string): Promise<Sequence
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const templateSends = await prisma.activity.groupBy({
-    by: ['description'],
-    where: { type: 'email_sent', metadata: { path: ['templateId'], not: null as any } },
-    _count: { id: true },
-  });
-
   const topTemplates: SequenceAnalytics['topTemplates'] = [];
   const stepBreakdown: SequenceAnalytics['stepBreakdown'] = [];
 
   for (const step of sequence.steps) {
-    const stepKey = `Step ${step.order}`;
     const sentCount = await prisma.activity.count({
       where: {
         type: 'email_sent',

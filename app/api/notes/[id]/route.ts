@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateNoteSchema } from '@/lib/validation/schemas';
@@ -21,8 +21,7 @@ export async function PUT(
   const existing = await prisma.note.findUnique({ where: { id }, select: { createdById: true } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isManager = user.role === 'director' || user.role === 'floor_manager' || user.role === 'team_lead';
-  if (!isManager && existing.createdById !== user.id) {
+  if (!(await canAccessUser(user, existing.createdById))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -50,8 +49,7 @@ export async function DELETE(
   const existing = await prisma.note.findUnique({ where: { id }, select: { createdById: true } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isManager = user.role === 'director' || user.role === 'floor_manager' || user.role === 'team_lead';
-  if (!isManager && existing.createdById !== user.id) {
+  if (!(await canAccessUser(user, existing.createdById))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

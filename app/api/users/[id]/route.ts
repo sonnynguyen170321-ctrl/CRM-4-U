@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { parseBody } from '@/lib/validation/core';
@@ -12,8 +12,12 @@ export async function GET(
 ) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const currentUser = userOrRes as SessionUser;
 
   const { id } = await params;
+  if (!(await canAccessUser(currentUser, id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const user = await prisma.user.findUnique({
     where: { id },

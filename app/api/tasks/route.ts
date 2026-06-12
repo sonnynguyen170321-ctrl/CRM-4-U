@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, getVisibleUserIds } from '@/lib/auth';
+import { requireAuth, getVisibleUserIds, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createTaskSchema } from '@/lib/validation/schemas';
@@ -79,6 +79,17 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, createTaskSchema);
   if (parsed.error) return parsed.error;
   const body = parsed.data;
+
+  const targetUserId = body.userId ?? user.id;
+  if (targetUserId !== user.id && !(await canAccessUser(user, targetUserId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const lead = await prisma.lead.findUnique({ where: { id: body.leadId }, select: { assignedToId: true } });
+  if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+  if (!(await canAccessUser(user, lead.assignedToId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const task = await prisma.task.create({

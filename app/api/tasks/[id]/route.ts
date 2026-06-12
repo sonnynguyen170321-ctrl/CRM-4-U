@@ -133,8 +133,7 @@ export async function DELETE(
   const existing = await prisma.task.findUnique({ where: { id }, select: { userId: true } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isManager = user.role === 'director' || user.role === 'floor_manager' || user.role === 'team_lead';
-  if (!isManager && existing.userId !== user.id) {
+  if (!(await canAccessUser(user, existing.userId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
