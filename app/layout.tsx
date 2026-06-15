@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -32,7 +33,11 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full" suppressHydrationWarning>
         {/* Apply saved theme before React hydrates to prevent flash */}
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('telestar-theme');document.body.setAttribute('data-theme',t||'mixed');}catch(e){}` }} />
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('telestar-theme');document.body.setAttribute('data-theme',t||'mixed');}catch(e){}` }}
+        />
         <SessionProvider>
           <AppProvider>
             <ThemeProvider>

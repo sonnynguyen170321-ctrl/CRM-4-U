@@ -193,8 +193,11 @@ export default function SequencesPage() {
     setSaving(false);
     if (res.ok) {
       showToast('Sequence cadence saved!', 'success');
-      await loadSequences();
+      setSequences((prev) =>
+        prev.map((s) => (s.id === selectedSeq.id ? { ...s, steps } : s))
+      );
       setSelectedSeq(null);
+      loadSequences();
     } else {
       showToast('Failed to save sequence', 'error');
     }

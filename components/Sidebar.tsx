@@ -107,17 +107,17 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
       {/* User Scoping Info (Footer of Sidebar) */}
       <div
         className="p-3 border-t border-sidebar-border flex items-center justify-between gap-3 bg-sidebar-bg/50"
-        aria-label={currentUser ? `Logged in as ${currentUser.firstName} ${currentUser.lastName}, role: ${userRole}` : `Current role: ${userRole}`}
+        aria-label={currentUser ? `Logged in as ${[currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')}, role: ${userRole}` : `Current role: ${userRole}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-sidebar-border border border-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange uppercase flex-shrink-0">
             {currentUser
-              ? `${currentUser.firstName[0]}${currentUser.lastName[0]}`
+              ? `${currentUser.firstName[0] || ''}${currentUser.lastName[0] || ''}`
               : userRole === 'director' ? 'SN' : '??'}
           </div>
           <div className="hidden xl:flex flex-col min-w-0">
             <span className="text-xs font-semibold text-sidebar-text truncate">
-              {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Loading...'}
+              {currentUser ? [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') : 'Loading...'}
             </span>
             <span className="text-[10px] text-sidebar-text-muted font-mono tracking-tighter truncate uppercase">
               {userRole.replace('_', ' ')}

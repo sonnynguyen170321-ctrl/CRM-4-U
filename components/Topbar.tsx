@@ -78,23 +78,9 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
       .then(() => fetchBellData())
       .catch(() => fetchBellData());
 
-    // Fallback trigger for the sequence engine + inbox sync (Vercel Hobby crons
-    // only fire daily). Throttled to once per 10 min per browser; the routes'
-    // CAS task-locking makes overlapping runs safe.
-    const pingEngine = () => {
-      const last = Number(localStorage.getItem('crm:engine-ping') ?? 0);
-      if (Date.now() - last < 10 * 60 * 1000) return;
-      localStorage.setItem('crm:engine-ping', String(Date.now()));
-      fetch('/api/cron/sequence-engine').catch(() => {});
-      fetch('/api/cron/inbox-sync').catch(() => {});
-    };
-    pingEngine();
-    const engineInterval = setInterval(pingEngine, 10 * 60 * 1000);
-
     window.addEventListener('crm:reminder-created', fetchBellData);
     window.addEventListener('crm:notifications-updated', fetchBellData);
     return () => {
-      clearInterval(engineInterval);
       window.removeEventListener('crm:reminder-created', fetchBellData);
       window.removeEventListener('crm:notifications-updated', fetchBellData);
     };
@@ -226,7 +212,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   };
 
   const displayName = currentUser
-    ? `${currentUser.firstName} ${currentUser.lastName}`
+    ? [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')
     : currentRole === 'director'
     ? 'Son Nguyen'
     : 'Team Member';

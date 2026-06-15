@@ -3,18 +3,22 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 import { EmailService } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseSequence } from '@/lib/sequences/engine';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const ACCOUNTS_PER_RUN = 10;
 const FIRST_SYNC_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
 
 export async function GET(req: NextRequest) {
-  const authorized =
+  const isCronSecret =
     process.env.CRON_SECRET &&
     req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  if (!authorized) {
+  const session = isCronSecret ? null : await auth();
+  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
+  if (!isCronSecret && !isManager) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

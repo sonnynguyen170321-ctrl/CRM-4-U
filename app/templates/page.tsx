@@ -135,7 +135,7 @@ export default function TemplatesPage() {
         name: 'New Template',
         channel: 'email',
         subject: '',
-        body: '',
+        body: 'Enter your message here...',
         category: 'general',
       }),
     });

@@ -302,6 +302,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     if (res.ok) {
       setLead((prev) => (prev ? { ...prev, stage: newStage } : prev));
       if (onLeadUpdate) onLeadUpdate({ ...lead, stage: newStage });
+      showToast('Stage updated', 'success');
     } else {
       showToast('Failed to update stage', 'error');
     }
@@ -316,6 +317,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     if (res.ok) {
       setLead((prev) => (prev ? { ...prev, priority: newPriority } : prev));
       if (onLeadUpdate) onLeadUpdate({ ...lead, priority: newPriority });
+      showToast('Priority updated', 'success');
     } else {
       showToast('Failed to update priority', 'error');
     }

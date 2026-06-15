@@ -164,6 +164,8 @@ export default function DashboardPage() {
       showToast('Failed to update task', 'error');
       return;
     }
+    if (status === 'skipped') showToast('Task skipped', 'info');
+    else if (status === 'completed') showToast('Task completed ✓', 'success');
     loadAll();
   };
 
@@ -260,6 +262,7 @@ export default function DashboardPage() {
       showToast('Failed to reschedule task', 'error');
       return;
     }
+    showToast('Task rescheduled ✓', 'success');
     setRescheduleTask(null);
     setNewDueDate('');
     loadAll();
@@ -808,13 +811,22 @@ export default function DashboardPage() {
               />
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Check className="w-4 h-4" aria-hidden="true" />
-              Submit &amp; Mark Complete
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setLoggingModalOpen(false); setLoggingTask(null); }}
+                className="flex-1 py-2.5 bg-card-border/30 hover:bg-card-border/50 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Check className="w-4 h-4" aria-hidden="true" />
+                Submit &amp; Mark Complete
+              </button>
+            </div>
           </form>
         </div>
       )}

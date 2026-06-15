@@ -50,13 +50,12 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'kanban' | 'table'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm:defaultLeadView');
-      if (saved === 'table' || saved === 'kanban') return saved;
-    }
-    return 'kanban';
-  });
+  const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('crm:defaultLeadView');
+    if (saved === 'table' || saved === 'kanban') setViewMode(saved);
+  }, []);
 
   const handleSetViewMode = (mode: 'kanban' | 'table') => {
     setViewMode(mode);
@@ -686,7 +685,7 @@ export default function LeadsPage() {
                       </td>
                       <td className="p-3 text-xs text-text-muted">
                         {lead.assignedTo
-                          ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName?.[0] ?? ''}.`
+                          ? `${lead.assignedTo.firstName}${lead.assignedTo.lastName ? ` ${lead.assignedTo.lastName[0]}.` : ''}`
                           : <span className="text-text-muted/50 italic">Unassigned</span>}
                       </td>
                       <td className="p-3 font-mono text-xs text-text-muted">

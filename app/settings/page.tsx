@@ -116,26 +116,22 @@ function SettingsPageInner() {
     { key: 'meeting_booked', label: 'Meeting Booked', always: false },
     { key: 'sdr_overdue_alert', label: 'SDR Overdue Alert (managers)', always: false },
   ];
-  const [defaultLeadView, setDefaultLeadView] = useState<'kanban' | 'table'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm:defaultLeadView');
-      if (saved === 'kanban' || saved === 'table') return saved;
-    }
-    return 'kanban';
-  });
-  const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = parseInt(localStorage.getItem('crm:itemsPerPage') ?? '25', 10);
-      if ([25, 50, 100].includes(saved)) return saved;
-    }
-    return 25;
-  });
-  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== 'undefined') {
-      try { return JSON.parse(localStorage.getItem('crm:notifPrefs') ?? '{}'); } catch { return {}; }
-    }
-    return {};
-  });
+  const [defaultLeadView, setDefaultLeadView] = useState<'kanban' | 'table'>('kanban');
+  const [itemsPerPage, setItemsPerPage] = useState<number>(25);
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const savedView = localStorage.getItem('crm:defaultLeadView');
+    if (savedView === 'kanban' || savedView === 'table') setDefaultLeadView(savedView);
+
+    const savedItems = parseInt(localStorage.getItem('crm:itemsPerPage') ?? '25', 10);
+    if ([25, 50, 100].includes(savedItems)) setItemsPerPage(savedItems);
+
+    try {
+      const savedNotifs = JSON.parse(localStorage.getItem('crm:notifPrefs') ?? '{}');
+      setNotifPrefs(savedNotifs);
+    } catch { /* ignore corrupt localStorage */ }
+  }, []);
   const isNotifEnabled = (key: string) => notifPrefs[key] !== false;
   const toggleNotif = (key: string, always: boolean) => {
     if (always) return;
@@ -502,6 +498,7 @@ function SettingsPageInner() {
                   <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Current Password</label>
                   <input
                     type="password"
+                    autoComplete="current-password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="••••••••"
@@ -513,6 +510,7 @@ function SettingsPageInner() {
                     <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">New Password</label>
                     <input
                       type="password"
+                      autoComplete="new-password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="8+ characters"
@@ -523,6 +521,7 @@ function SettingsPageInner() {
                     <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Confirm New Password</label>
                     <input
                       type="password"
+                      autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Repeat password"

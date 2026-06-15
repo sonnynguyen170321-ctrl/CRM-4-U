@@ -2,17 +2,60 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { EmailService } from '@/lib/email/EmailService';
 import { scheduleSmartSends, distributeSends } from '@/lib/sequences/smartSend';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const LOCK_STALE_MS = 10 * 60 * 1000;
 
+async function createDailyNotifications(now: Date): Promise<number> {
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const overdueTasks = await prisma.task.findMany({
+    where: { status: 'pending', dueDate: { lt: now } },
+    select: { userId: true },
+  });
+  if (overdueTasks.length === 0) return 0;
+
+  const countByUser = new Map<string, number>();
+  for (const t of overdueTasks) {
+    countByUser.set(t.userId, (countByUser.get(t.userId) ?? 0) + 1);
+  }
+
+  const existing = await prisma.notification.findMany({
+    where: { type: 'task_overdue', createdAt: { gte: startOfDay } },
+    select: { userId: true },
+  });
+  const alreadyNotified = new Set(existing.map((n) => n.userId));
+
+  let created = 0;
+  for (const [userId, count] of countByUser.entries()) {
+    if (alreadyNotified.has(userId)) continue;
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: 'task_overdue',
+        title: 'Overdue Tasks',
+        text: `You have ${count} overdue task${count === 1 ? '' : 's'} that need${count === 1 ? 's' : ''} attention.`,
+        linkTo: '/',
+      },
+    });
+    created++;
+  }
+  return created;
+}
+
+const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
+
 export async function GET(req: NextRequest) {
-  const authorized =
+  const isCronSecret =
     process.env.CRON_SECRET &&
     req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  if (!authorized) {
+  const session = isCronSecret ? null : await auth();
+  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
+  if (!isCronSecret && !isManager) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

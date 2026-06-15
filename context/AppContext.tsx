@@ -37,7 +37,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isDemoMode = process.env.NODE_ENV !== 'production';
   const currentRole: UserRole = overrideRole ?? sessionRole ?? (isDemoMode ? 'director' : 'sdr');
   const currentUserId: string = (session?.user as any)?.id ?? (isDemoMode ? 'u1' : '');
-  const isManager: boolean = (session?.user as any)?.isManager ?? (isDemoMode ? true : false);
+  const isManager: boolean = currentRole !== 'sdr' && currentRole !== 'leadgen';
   const currentUser = session?.user
     ? {
         firstName: (session.user as any).firstName ?? '',
