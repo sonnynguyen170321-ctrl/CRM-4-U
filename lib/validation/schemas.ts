@@ -119,6 +119,7 @@ export const sendEmailSchema = z.object({
   body: longText.optional(),
   text: longText.optional(),
   html: longText.optional(),
+  replyTo: z.string().email().max(320).optional(),
   leadId: id.optional(),
   templateId: id.optional(),
 });

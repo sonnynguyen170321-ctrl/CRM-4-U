@@ -18,7 +18,7 @@ export async function encrypt(plaintext: string): Promise<string> {
 
   if (kmsKeyArn) {
     try {
-      // @ts-ignore
+      // @ts-expect-error — optional AWS SDK dependency
       const { KMSClient, GenerateDataKeyCommand } = await import('@aws-sdk/client-kms');
       const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
       const kmsResponse = await kms.send(
@@ -65,7 +65,7 @@ export async function decrypt(encoded: string): Promise<string> {
       const rawPayload = Buffer.from(encoded.substring(4), 'base64').toString('utf8');
       const payload = JSON.parse(rawPayload);
 
-      // @ts-ignore
+      // @ts-expect-error — optional AWS SDK dependency
       const { KMSClient, DecryptCommand } = await import('@aws-sdk/client-kms');
       const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
 

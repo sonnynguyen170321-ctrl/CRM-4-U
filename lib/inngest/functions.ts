@@ -129,11 +129,11 @@ export const executeScheduledTask = inngest.createFunction(
         let body: string;
         let selectedVariantId: string | null = null;
 
-        if (template.abVariants && template.abVariants.length >= 2) {
-          const variantA = template.abVariants.find((v: any) => v.version === 'A');
-          const variantB = template.abVariants.find((v: any) => v.version === 'B');
-          const useB = variantB && Math.random() < 0.5;
-          const selected = useB ? variantB! : variantA!;
+        const variantA = template.abVariants?.find((v: any) => v.version === 'A');
+        const variantB = template.abVariants?.find((v: any) => v.version === 'B');
+        if (variantA && variantB) {
+          const useB = Math.random() < 0.5;
+          const selected = useB ? variantB : variantA;
           subject = renderTemplate(selected.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
           body = renderTemplate(selected.body ?? template.body, task.lead, task.lead.assignedTo);
           selectedVariantId = selected.id;
@@ -193,6 +193,7 @@ export const executeScheduledTask = inngest.createFunction(
               accountId: account.id,
               subject: renderPayload.subject,
               taskId: task.id,
+              sequenceId: task.sequenceId,
               sequenceStep: order,
             },
           },

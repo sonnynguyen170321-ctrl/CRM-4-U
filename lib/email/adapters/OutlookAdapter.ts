@@ -3,6 +3,9 @@ import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailServi
 interface OutlookConfig {
   accessToken: string;
   refreshToken: string;
+  tokenExpiry?: Date;
+  /** EmailAccount.id — used to persist refreshed tokens back to the DB. */
+  accountId?: string;
 }
 
 const GRAPH_SEND_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
@@ -41,13 +44,27 @@ export class OutlookAdapter implements EmailAdapter {
       throw new Error(`Microsoft token refresh returned no access_token: ${data.error_description ?? data.error}`);
     }
     this.config.accessToken = data.access_token;
+    if (data.refresh_token) {
+      this.config.refreshToken = data.refresh_token;
+    }
+    if (this.config.accountId) {
+      const { prisma } = await import('@/lib/prisma');
+      await prisma.emailAccount.update({
+        where: { id: this.config.accountId },
+        data: {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token ?? undefined,
+          tokenExpiry: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
+        },
+      });
+    }
     return data.access_token;
   }
 
   async send(options: SendEmailOptions): Promise<void> {
     let token = this.config.accessToken;
 
-    const payload = {
+    const payload: any = {
       message: {
         subject: options.subject,
         body: {
@@ -55,7 +72,7 @@ export class OutlookAdapter implements EmailAdapter {
           content: options.html ?? options.text ?? '',
         },
         toRecipients: [{ emailAddress: { address: options.to } }],
-        from: { emailAddress: { address: options.from } },
+        ...(options.replyTo ? { replyTo: [{ emailAddress: { address: options.replyTo } }] } : {}),
       },
     };
 

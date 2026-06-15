@@ -14,13 +14,17 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get('state');
 
   if (!code) {
-    return NextResponse.redirect(new URL('/settings?error=google_auth_failed', req.url));
+    const res = NextResponse.redirect(new URL('/settings?error=google_auth_failed', req.url));
+    res.cookies.delete('oauth_nonce_google');
+    return res;
   }
 
   // CSRF validation: compare state against the nonce stored in the HttpOnly cookie
   const nonce = req.cookies.get('oauth_nonce_google')?.value;
   if (!nonce || state !== nonce) {
-    return NextResponse.redirect(new URL('/settings?error=google_invalid_state', req.url));
+    const res = NextResponse.redirect(new URL('/settings?error=google_invalid_state', req.url));
+    res.cookies.delete('oauth_nonce_google');
+    return res;
   }
 
   try {

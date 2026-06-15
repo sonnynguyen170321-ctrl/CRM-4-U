@@ -10,30 +10,34 @@ export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
-  const { searchParams } = new URL(req.url);
-  const channel = searchParams.get('channel');
-  const search = searchParams.get('search') || '';
+  try {
+    const { searchParams } = new URL(req.url);
+    const channel = searchParams.get('channel');
+    const search = searchParams.get('search') || '';
 
-  const templates = await prisma.template.findMany({
-    where: {
-      ...(channel ? { channel: channel as any } : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { body: { contains: search, mode: 'insensitive' } },
-              { subject: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      createdBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-    orderBy: { updatedAt: 'desc' },
-  });
+    const templates = await prisma.template.findMany({
+      where: {
+        ...(channel ? { channel: channel as any } : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { body: { contains: search, mode: 'insensitive' } },
+                { subject: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-  return NextResponse.json(templates);
+    return NextResponse.json(templates);
+  } catch (err) {
+    return handleApiError('api/templates GET', err);
+  }
 }
 
 export async function POST(req: NextRequest) {

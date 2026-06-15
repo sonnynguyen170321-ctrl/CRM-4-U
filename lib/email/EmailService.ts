@@ -57,6 +57,7 @@ export class EmailService {
             accessToken: account.accessToken!,
             refreshToken: account.refreshToken!,
             tokenExpiry: account.tokenExpiry ?? undefined,
+            accountId: account.id,
           })
         );
 
@@ -65,11 +66,12 @@ export class EmailService {
           new OutlookAdapter({
             accessToken: account.accessToken!,
             refreshToken: account.refreshToken!,
+            tokenExpiry: account.tokenExpiry ?? undefined,
+            accountId: account.id,
           })
         );
 
       case 'imap_smtp':
-      default:
         return new EmailService(
           new ImapAdapter({
             email: account.email,
@@ -80,6 +82,9 @@ export class EmailService {
             imapPort: account.imapPort ?? undefined,
           })
         );
+
+      default:
+        throw new Error(`Unknown email provider: ${account.provider}`);
     }
   }
 }

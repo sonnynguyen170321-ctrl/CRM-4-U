@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireManager } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
+import { handleApiError } from '@/lib/api/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,20 +12,21 @@ export async function GET(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const { searchParams } = new URL(req.url);
-  const sdrId = searchParams.get('sdrId') ?? '';
-  const managerId = searchParams.get('managerId') ?? '';
+  try {
+    const { searchParams } = new URL(req.url);
+    const sdrId = searchParams.get('sdrId') ?? '';
+    const managerId = searchParams.get('managerId') ?? '';
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const atRiskCutoff = new Date(todayStart.getTime() - 3 * 86400000);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const atRiskCutoff = new Date(todayStart.getTime() - 3 * 86400000);
 
-  const allUsers = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true, firstName: true, lastName: true, role: true, managerId: true },
-  });
+    const allUsers = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, firstName: true, lastName: true, role: true, managerId: true },
+    });
 
-  const visibleIds = computeVisibleUserIds(allUsers, user);
+    const visibleIds = computeVisibleUserIds(allUsers, user);
 
   // Scoping target users
   let targetIds = visibleIds ? [...visibleIds] : allUsers.map((u) => u.id);
@@ -109,9 +111,12 @@ export async function GET(req: NextRequest) {
     };
   }).sort((a, b) => b.overdueCount - a.overdueCount);
 
-  return NextResponse.json({
-    users: userAlerts,
-    atRiskLeads: atRiskLeads.slice(0, 10), // return top 10
-    totalAtRiskCount: atRiskLeads.length
-  });
+    return NextResponse.json({
+      users: userAlerts,
+      atRiskLeads: atRiskLeads.slice(0, 10),
+      totalAtRiskCount: atRiskLeads.length
+    });
+  } catch (err) {
+    return handleApiError('api/team/alerts GET', err);
+  }
 }

@@ -4,6 +4,7 @@ import { requireAuth, canAccessUser } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createNoteSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -45,28 +46,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const note = await prisma.note.create({
-    data: {
-      leadId: body.leadId,
-      content: body.content,
-      createdById: user.id,
-      isPinned: body.isPinned ?? false,
-    },
-    include: {
-      createdBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  try {
+    const note = await prisma.note.create({
+      data: {
+        leadId: body.leadId,
+        content: body.content,
+        createdById: user.id,
+        isPinned: body.isPinned ?? false,
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Auto-log note_added activity
-  await prisma.activity.create({
-    data: {
-      userId: user.id,
-      leadId: body.leadId,
-      type: 'note_added',
-      description: 'Note added to lead',
-      metadata: { excerpt: body.content.slice(0, 100) },
-    },
-  });
+    await prisma.activity.create({
+      data: {
+        userId: user.id,
+        leadId: body.leadId,
+        type: 'note_added',
+        description: 'Note added to lead',
+        metadata: { excerpt: body.content.slice(0, 100) },
+      },
+    });
 
-  return NextResponse.json(note, { status: 201 });
+    return NextResponse.json(note, { status: 201 });
+  } catch (err) {
+    return handleApiError('api/notes POST', err);
+  }
 }

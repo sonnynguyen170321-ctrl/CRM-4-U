@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, getVisibleUserIds } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { handleApiError } from '@/lib/api/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,22 +25,22 @@ export async function GET(
     dateRange === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1) :
     new Date(todayStart.getTime() - 7 * 86400000); // Default to week
 
-  const campaign = await prisma.campaign.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      campaignSdrs: true
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        campaignSdrs: true
+      }
+    });
+
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
-  });
 
-  if (!campaign) {
-    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
-  }
+    const visibleUserIds = await getVisibleUserIds(user);
 
-  const visibleUserIds = await getVisibleUserIds(user);
-
-  // Scoping check for campaign
-  if (visibleUserIds) {
+    if (visibleUserIds) {
     const isAssigned = campaign.campaignSdrs.some((cs) => visibleUserIds.includes(cs.userId));
     if (!isAssigned) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -207,20 +208,23 @@ export async function GET(
     })
   );
 
-  return NextResponse.json({
-    campaignName: campaign.name,
-    clientName: campaign.client.name,
-    status: campaign.status,
-    kpis: {
-      meetingsBooked,
-      contactsTouched,
-      replies,
-      replyRate,
-      sequencesRunning,
-      tasksDone
-    },
-    stageCounts,
-    sequences: sequenceMetrics,
-    reps: repMetrics
-  });
+    return NextResponse.json({
+      campaignName: campaign.name,
+      clientName: campaign.client.name,
+      status: campaign.status,
+      kpis: {
+        meetingsBooked,
+        contactsTouched,
+        replies,
+        replyRate,
+        sequencesRunning,
+        tasksDone
+      },
+      stageCounts,
+      sequences: sequenceMetrics,
+      reps: repMetrics
+    });
+  } catch (err) {
+    return handleApiError('api/team/campaigns/[id] GET', err);
+  }
 }

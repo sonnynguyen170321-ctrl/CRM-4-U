@@ -1,11 +1,9 @@
-// @ts-nocheck
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-// Seed anchor: "today" = June 9, 2026
-const TODAY = new Date('2026-06-09T12:00:00+07:00');
+const TODAY = new Date();
 const d = (offsetDays: number, hour = 10) => {
   const dt = new Date(TODAY);
   dt.setDate(dt.getDate() + offsetDays);

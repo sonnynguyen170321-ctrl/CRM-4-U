@@ -32,6 +32,22 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  const VALID_PROVIDERS = ['gmail', 'outlook', 'imap_smtp'] as const;
+  if (!VALID_PROVIDERS.includes(body.provider)) {
+    return NextResponse.json(
+      { error: `Invalid provider. Must be one of: ${VALID_PROVIDERS.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
+  // OAuth providers (Gmail, Outlook) must use the OAuth callback flow
+  if (body.provider === 'gmail' || body.provider === 'outlook') {
+    return NextResponse.json(
+      { error: 'Gmail and Outlook accounts must be connected via the OAuth flow in Settings' },
+      { status: 400 }
+    );
+  }
+
   // Accept both imapHost and imapServer field names for compatibility
   const imapHost = body.imapHost ?? body.imapServer;
   const smtpHost = body.smtpHost ?? body.smtpServer;

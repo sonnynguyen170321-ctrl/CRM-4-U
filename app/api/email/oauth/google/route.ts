@@ -11,16 +11,21 @@ export async function GET(_req: NextRequest) {
     return NextResponse.redirect(new URL('/settings?error=google_not_configured', _req.url));
   }
 
-  const nonce = randomBytes(32).toString('hex');
-  const authUrl = getGoogleAuthUrl(nonce);
+  try {
+    const nonce = randomBytes(32).toString('hex');
+    const authUrl = getGoogleAuthUrl(nonce);
 
-  const res = NextResponse.redirect(authUrl);
-  res.cookies.set('oauth_nonce_google', nonce, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 600,
-  });
-  return res;
+    const res = NextResponse.redirect(authUrl);
+    res.cookies.set('oauth_nonce_google', nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 600,
+    });
+    return res;
+  } catch (err) {
+    console.error('[oauth/google] Failed to generate auth URL:', err);
+    return NextResponse.redirect(new URL('/settings?error=google_auth_failed', _req.url));
+  }
 }

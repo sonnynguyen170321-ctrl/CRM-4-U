@@ -4,6 +4,7 @@ import { requireRole, getVisibleUserIds, type SessionUser } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { parseBody } from '@/lib/validation/core';
 import { createUserSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET() {
   const userOrRes = await requireRole('leadgen');
@@ -59,26 +60,30 @@ export async function POST(req: NextRequest) {
 
   const hashedPassword = await hash(body.password, 12);
 
-  const user = await prisma.user.create({
-    data: {
-      email: body.email,
-      password: hashedPassword,
-      firstName: body.firstName,
-      lastName: body.lastName,
-      role: body.role,
-      managerId: body.managerId ?? null,
-      timezone: body.timezone ?? 'UTC',
-    },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      managerId: true,
-      createdAt: true,
-    },
-  });
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email: body.email,
+        password: hashedPassword,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        role: body.role,
+        managerId: body.managerId ?? null,
+        timezone: body.timezone ?? 'UTC',
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        managerId: true,
+        createdAt: true,
+      },
+    });
 
-  return NextResponse.json(user, { status: 201 });
+    return NextResponse.json(user, { status: 201 });
+  } catch (err) {
+    return handleApiError('api/users POST', err);
+  }
 }

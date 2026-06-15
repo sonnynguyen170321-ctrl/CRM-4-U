@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET() {
   const userOrRes = await requireAuth();
@@ -28,28 +29,47 @@ export async function PUT(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
-  const { firstName, lastName, timezone } = body as {
-    firstName?: string;
-    lastName?: string;
-    timezone?: string;
-  };
+  let firstName: string | undefined;
+  let lastName: string | undefined;
+  let timezone: string | undefined;
+  try {
+    const body = await req.json();
+    firstName = typeof body.firstName === 'string' ? body.firstName.trim() : undefined;
+    lastName = typeof body.lastName === 'string' ? body.lastName.trim() : undefined;
+    timezone = typeof body.timezone === 'string' ? body.timezone.trim() : undefined;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      ...(firstName !== undefined && { firstName }),
-      ...(lastName !== undefined && { lastName }),
-      ...(timezone !== undefined && { timezone }),
-    },
-  });
+  if (firstName !== undefined && (firstName.length < 1 || firstName.length > 120)) {
+    return NextResponse.json({ error: 'firstName must be 1-120 characters' }, { status: 400 });
+  }
+  if (lastName !== undefined && (lastName.length < 1 || lastName.length > 120)) {
+    return NextResponse.json({ error: 'lastName must be 1-120 characters' }, { status: 400 });
+  }
+  if (timezone !== undefined && timezone.length > 60) {
+    return NextResponse.json({ error: 'timezone too long' }, { status: 400 });
+  }
 
-  return NextResponse.json({
-    id: updated.id,
-    firstName: updated.firstName,
-    lastName: updated.lastName,
-    email: updated.email,
-    timezone: updated.timezone ?? 'Asia/Ho_Chi_Minh',
-    role: updated.role,
-  });
+  try {
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(timezone !== undefined && { timezone }),
+      },
+    });
+
+    return NextResponse.json({
+      id: updated.id,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      email: updated.email,
+      timezone: updated.timezone ?? 'Asia/Ho_Chi_Minh',
+      role: updated.role,
+    });
+  } catch (err) {
+    return handleApiError('api/settings PUT', err);
+  }
 }

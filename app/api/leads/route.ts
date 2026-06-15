@@ -30,72 +30,71 @@ export async function GET(req: NextRequest) {
     ? { assignedToId: { in: visibleIds } }
     : {};
 
-  const leads = await prisma.lead.findMany({
-    take: limit,
-    where: {
-      ...roleScope,
-      ...(stage ? { stage: stage as any } : {}),
-      ...(priority ? { priority: priority as any } : {}),
-      ...(assignedTo ? { assignedToId: assignedTo } : {}),
-      ...(campaignId ? { campaignId } : {}),
-      ...(source ? { source: { contains: source, mode: 'insensitive' as const } } : {}),
-      ...(tag ? { tags: { has: tag } } : {}),
-      ...(dateFrom || dateTo ? {
-        createdAt: {
-          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-          ...(dateTo ? { lte: new Date(dateTo + 'T23:59:59Z') } : {}),
-        },
-      } : {}),
-      ...(search
-        ? {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
-              { company: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      assignedTo: { select: { id: true, firstName: true, lastName: true } },
-      campaign: { select: { id: true, name: true } },
-      _count: { select: { tasks: true, notes: true } },
-      tasks: {
-        where: { status: 'pending' },
-        orderBy: { dueDate: 'asc' },
-        take: 5,
-        select: { dueDate: true, type: true, status: true, sequenceId: true },
+  try {
+    const leads = await prisma.lead.findMany({
+      take: limit,
+      where: {
+        ...roleScope,
+        ...(stage ? { stage: stage as any } : {}),
+        ...(priority ? { priority: priority as any } : {}),
+        ...(assignedTo ? { assignedToId: assignedTo } : {}),
+        ...(campaignId ? { campaignId } : {}),
+        ...(source ? { source: { contains: source, mode: 'insensitive' as const } } : {}),
+        ...(tag ? { tags: { has: tag } } : {}),
+        ...(dateFrom || dateTo ? {
+          createdAt: {
+            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+            ...(dateTo ? { lte: new Date(dateTo + 'T23:59:59Z') } : {}),
+          },
+        } : {}),
+        ...(search
+          ? {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { company: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
-    },
-    orderBy: [{ updatedAt: 'desc' }],
-  });
+      include: {
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        campaign: { select: { id: true, name: true } },
+        _count: { select: { tasks: true, notes: true } },
+        tasks: {
+          where: { status: 'pending' },
+          orderBy: { dueDate: 'asc' },
+          take: 5,
+          select: { dueDate: true, type: true, status: true, sequenceId: true },
+        },
+      },
+      orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
+    });
 
-  // Sort by priority: hot → warm → cold (DB enum order is alphabetical, not business order)
-  const priorityRank: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
-  leads.sort((a: any, b: any) => (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2));
+    const atRiskCutoff = new Date(Date.now() - 3 * 86400000);
 
-  // At-risk: a sequence step task overdue by 3+ days (SKILL.md §3)
-  const atRiskCutoff = new Date(Date.now() - 3 * 86400000);
+    const enriched = leads.map((l: any) => {
+      const aiScore = scoreLead({ ...l, activities: [] });
+      return {
+        ...l,
+        nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
+        nextTaskType: l.tasks?.[0]?.type ?? null,
+        atRisk: (l.tasks ?? []).some(
+          (t: any) => t.sequenceId && new Date(t.dueDate) < atRiskCutoff
+        ),
+        aiScore: aiScore.score,
+        aiLabel: aiScore.label,
+        aiInsights: aiScore.insights,
+        aiRecommendation: aiScore.recommendation,
+        tasks: undefined,
+      };
+    });
 
-  const enriched = leads.map((l: any) => {
-    const aiScore = scoreLead({ ...l, activities: [] });
-    return {
-      ...l,
-      nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
-      nextTaskType: l.tasks?.[0]?.type ?? null,
-      atRisk: (l.tasks ?? []).some(
-        (t: any) => t.sequenceId && new Date(t.dueDate) < atRiskCutoff
-      ),
-      aiScore: aiScore.score,
-      aiLabel: aiScore.label,
-      aiInsights: aiScore.insights,
-      aiRecommendation: aiScore.recommendation,
-      tasks: undefined,
-    };
-  });
-
-  return NextResponse.json(enriched);
+    return NextResponse.json(enriched);
+  } catch (err) {
+    return handleApiError('api/leads GET', err);
+  }
 }
 
 export async function POST(req: NextRequest) {

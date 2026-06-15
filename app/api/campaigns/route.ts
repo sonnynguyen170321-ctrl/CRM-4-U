@@ -13,25 +13,28 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type');
 
-  // Return clients list for the campaign modal dropdown
-  if (type === 'clients') {
-    const clients = await prisma.client.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, industry: true },
+  try {
+    if (type === 'clients') {
+      const clients = await prisma.client.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, industry: true },
+      });
+      return NextResponse.json({ clients }, {
+        headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+      });
+    }
+
+    const campaigns = await prisma.campaign.findMany({
+      include: { client: true },
+      orderBy: { startDate: 'desc' },
     });
-    return NextResponse.json({ clients }, {
+
+    return NextResponse.json(campaigns, {
       headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
     });
+  } catch (err) {
+    return handleApiError('api/campaigns GET', err);
   }
-
-  const campaigns = await prisma.campaign.findMany({
-    include: { client: true },
-    orderBy: { startDate: 'desc' },
-  });
-
-  return NextResponse.json(campaigns, {
-    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
-  });
 }
 
 export async function POST(req: NextRequest) {

@@ -3,31 +3,32 @@ import { prisma } from '@/lib/prisma';
 import { requireManager } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
+import { handleApiError } from '@/lib/api/errors';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // restricted to managers (team_lead/leadgen manager and above)
   const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const { searchParams } = new URL(req.url);
-  const dateRange = searchParams.get('dateRange') ?? 'week';
-  const sdrId = searchParams.get('sdrId') ?? '';
-  const managerId = searchParams.get('managerId') ?? '';
+  try {
+    const { searchParams } = new URL(req.url);
+    const dateRange = searchParams.get('dateRange') ?? 'week';
+    const sdrId = searchParams.get('sdrId') ?? '';
+    const managerId = searchParams.get('managerId') ?? '';
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const rangeStart =
-    dateRange === 'today' ? todayStart :
-    dateRange === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1) :
-    new Date(todayStart.getTime() - 7 * 86400000); // Default to week
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const rangeStart =
+      dateRange === 'today' ? todayStart :
+      dateRange === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1) :
+      new Date(todayStart.getTime() - 7 * 86400000);
 
-  const allUsers = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true, firstName: true, lastName: true, role: true, managerId: true },
-  });
+    const allUsers = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, firstName: true, lastName: true, role: true, managerId: true },
+    });
 
   const visibleIds = computeVisibleUserIds(allUsers, user);
 
@@ -82,5 +83,8 @@ export async function GET(req: NextRequest) {
     };
   }).sort((a, b) => b.booked - a.booked || b.total - a.total);
 
-  return NextResponse.json(leaderboard);
+    return NextResponse.json(leaderboard);
+  } catch (err) {
+    return handleApiError('api/team/leaderboard GET', err);
+  }
 }

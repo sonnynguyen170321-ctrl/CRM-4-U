@@ -173,11 +173,11 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       let body: string;
 
       let selectedVariantId: string | null = null;
-      if (template.abVariants.length > 0 && template.abVariants.length >= 2) {
-        const variantA = template.abVariants.find(v => v.version === 'A');
-        const variantB = template.abVariants.find(v => v.version === 'B');
-        const useB = variantB && Math.random() < 0.5;
-        const selected = useB ? variantB! : variantA!;
+      const variantA = template.abVariants.find(v => v.version === 'A');
+      const variantB = template.abVariants.find(v => v.version === 'B');
+      if (variantA && variantB) {
+        const useB = Math.random() < 0.5;
+        const selected = useB ? variantB : variantA;
         subject = renderTemplate(selected.subject ?? template.subject ?? '', lead, lead.assignedTo);
         body = renderTemplate(selected.body ?? template.body, lead, lead.assignedTo);
         selectedVariantId = selected.id;
@@ -239,6 +239,7 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
               subject,
               taskId: task.id,
               timezone: lead.timezone,
+              sequenceId: task.sequenceId,
               sequenceStep: step.order,
             },
           },

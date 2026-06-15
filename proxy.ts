@@ -1,20 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 
-export function proxy(req: NextRequest) {
-  // NextAuth v5 sets one of these two cookie names depending on HTTPS
-  const hasSession =
-    req.cookies.has('__Secure-authjs.session-token') ||
-    req.cookies.has('authjs.session-token');
-
-  if (!hasSession) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-
-  return NextResponse.next();
+export function proxy(_req: NextRequest) {
+  const response = NextResponse.next()
+  response.headers.set("X-Content-Type-Options", "nosniff")
+  response.headers.set("X-Frame-Options", "DENY")
+  response.headers.set("X-XSS-Protection", "1; mode=block")
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
+  return response
 }
-
-export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|login).*)',
-  ],
-};

@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       subject,
       html: html ?? text,
       text,
+      ...(body.replyTo ? { replyTo: body.replyTo } : {}),
     });
 
     // Log the activity

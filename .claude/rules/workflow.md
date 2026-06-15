@@ -20,6 +20,12 @@ alwaysApply: true
 - Write standard PostgreSQL — must run on both local PG and Supabase without changes.
 - If asked to build only one module, still include the navigation shell so it feels like
   part of the full app.
+- **Leverage ECC-native skills loaded in `.claude/skills/ecc/`:**
+  - For database operations, reference [prisma-patterns](file:///.claude/skills/ecc/prisma-patterns/SKILL.md) (handling the `@updatedAt` bulk-write trap, connection singletons, and `findFirstOrThrow` soft-delete query trap).
+  - For schema alterations, reference [database-migrations](file:///.claude/skills/ecc/database-migrations/SKILL.md) (expand-contract patterns, concurrent indexing).
+  - For DB indexing and performance, reference [postgres-patterns](file:///.claude/skills/ecc/postgres-patterns/SKILL.md) (composite index order: equality columns first).
+  - For endpoint structure, reference [api-design](file:///.claude/skills/ecc/api-design/SKILL.md) (standard query wrappers and error envelopes).
+  - For outreach tasks and mail delivery verification, reference [lead-intelligence](file:///.claude/skills/ecc/lead-intelligence/SKILL.md) and [email-ops](file:///.claude/skills/ecc/email-ops/SKILL.md) (graceful degradation, outbox-pattern checks).
 
 ## Build Sequence (Starting from Scratch)
 

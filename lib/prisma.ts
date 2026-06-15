@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
 export { tenantStorage };
@@ -17,7 +17,7 @@ async function getTenantIdFromSession(): Promise<string | null> {
       const session = await auth();
       return (session?.user as any)?.tenantId || null;
     });
-  } catch (err) {
+  } catch {
     // Fail silently when cookies/headers are not available (e.g. outside request context)
     return null;
   }
@@ -47,8 +47,7 @@ function createPrismaClient() {
           }
 
           const isLocalOrScript =
-            !process.env.NEXT_PHASE &&
-            (process.env.NODE_ENV !== 'production' || process.env.BYPASS_RLS === 'true');
+            process.env.NODE_ENV !== 'production' || process.env.BYPASS_RLS === 'true';
 
           if (!tenantId && isLocalOrScript) {
             bypassRls = true;

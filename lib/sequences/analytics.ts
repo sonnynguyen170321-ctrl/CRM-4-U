@@ -40,7 +40,7 @@ export async function getSequenceAnalytics(sequenceId: string): Promise<Sequence
   });
 
   const sends = await prisma.activity.findMany({
-    where: { sequenceId: null, type: 'email_sent', metadata: { path: ['sequenceId'], equals: sequenceId } },
+    where: { type: 'email_sent', metadata: { path: ['sequenceId'], equals: sequenceId } },
     select: { createdAt: true },
   });
 

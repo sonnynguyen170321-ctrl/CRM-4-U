@@ -10,21 +10,25 @@ export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
-  const showArchived = new URL(req.url).searchParams.get('archived') === '1';
+  try {
+    const showArchived = new URL(req.url).searchParams.get('archived') === '1';
 
-  const sequences = await prisma.sequence.findMany({
-    where: { isArchived: showArchived },
-    include: {
-      steps: { orderBy: { order: 'asc' } },
-      createdBy: { select: { id: true, firstName: true, lastName: true } },
-      _count: { select: { leads: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+    const sequences = await prisma.sequence.findMany({
+      where: { isArchived: showArchived },
+      include: {
+        steps: { orderBy: { order: 'asc' } },
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { leads: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(sequences, {
-    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
-  });
+    return NextResponse.json(sequences, {
+      headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+    });
+  } catch (err) {
+    return handleApiError('api/sequences GET', err);
+  }
 }
 
 export async function POST(req: NextRequest) {

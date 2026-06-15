@@ -14,17 +14,25 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get('state');
 
   if (!code) {
-    return NextResponse.redirect(new URL('/settings?error=microsoft_auth_failed', req.url));
+    const res = NextResponse.redirect(new URL('/settings?error=microsoft_auth_failed', req.url));
+    res.cookies.delete('oauth_nonce_microsoft');
+    return res;
   }
 
   // CSRF validation: compare state against the nonce stored in the HttpOnly cookie
   const nonce = req.cookies.get('oauth_nonce_microsoft')?.value;
   if (!nonce || state !== nonce) {
-    return NextResponse.redirect(new URL('/settings?error=microsoft_invalid_state', req.url));
+    const res = NextResponse.redirect(new URL('/settings?error=microsoft_invalid_state', req.url));
+    res.cookies.delete('oauth_nonce_microsoft');
+    return res;
   }
 
   try {
     const { email, accessToken, refreshToken, tokenExpiry } = await exchangeMicrosoftCode(code);
+
+    if (!email) {
+      return NextResponse.redirect(new URL('/settings?error=microsoft_no_email', req.url));
+    }
 
     // Check if user already connected this Outlook account
     const existing = await prisma.emailAccount.findFirst({

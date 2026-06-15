@@ -41,34 +41,37 @@ export async function GET(req: NextRequest) {
     userScope = { userId: scopeUserId };
   }
 
-  const tasks = await prisma.task.findMany({
-    where: {
-      ...userScope,
-      ...(leadId ? { leadId } : {}),
-      ...dateFilter,
-    },
-    include: {
-      lead: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          company: true,
-          priority: true,
-          stage: true,
-          tags: true,
-        },
+  try {
+    const tasks = await prisma.task.findMany({
+      where: {
+        ...userScope,
+        ...(leadId ? { leadId } : {}),
+        ...dateFilter,
       },
-      user: { select: { id: true, firstName: true, lastName: true } },
-    },
-    orderBy: [{ dueDate: 'asc' }],
-  });
+      include: {
+        lead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            company: true,
+            priority: true,
+            stage: true,
+            tags: true,
+          },
+        },
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: [{ dueDate: 'asc' }],
+    });
 
-  // Sort by priority manually (enum alphabetical order ≠ business priority order)
-  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-  const sorted = tasks.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const sorted = tasks.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
 
-  return NextResponse.json(sorted);
+    return NextResponse.json(sorted);
+  } catch (err) {
+    return handleApiError('api/tasks GET', err);
+  }
 }
 
 export async function POST(req: NextRequest) {

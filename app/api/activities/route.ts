@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createActivitySchema } from '@/lib/validation/schemas';
 import { nextBusinessDay } from '@/lib/dates/businessDays';
+import { handleApiError } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -62,43 +63,45 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
-  const activity = await prisma.activity.create({
-    data: {
-      userId: user.id,
-      leadId: body.leadId,
-      sequenceId: body.sequenceId,
-      type: body.type,
-      channel: body.channel,
-      description: body.description,
-      metadata: body.metadata as object | undefined,
-    },
-  });
-
-  // Callback requested via the call-logging modal → follow-up phone task
-  // next business day (SKILL.md §21)
-  if (
-    body.leadId &&
-    (body.type === 'call_logged' || body.type === 'call_made') &&
-    (body.metadata as Record<string, unknown> | undefined)?.outcome === 'callback_requested'
-  ) {
-    const lead = await prisma.lead.findUnique({
-      where: { id: body.leadId },
-      select: { firstName: true, lastName: true },
+  try {
+    const activity = await prisma.activity.create({
+      data: {
+        userId: user.id,
+        leadId: body.leadId,
+        sequenceId: body.sequenceId,
+        type: body.type,
+        channel: body.channel,
+        description: body.description,
+        metadata: body.metadata as object | undefined,
+      },
     });
-    if (lead) {
-      await prisma.task.create({
-        data: {
-          leadId: body.leadId,
-          userId: user.id,
-          type: 'phone',
-          title: `Callback: ${lead.firstName} ${lead.lastName}`,
-          description: 'Callback requested on previous call',
-          dueDate: nextBusinessDay(new Date()),
-          priority: 'high',
-        },
-      });
-    }
-  }
 
-  return NextResponse.json(activity, { status: 201 });
+    if (
+      body.leadId &&
+      (body.type === 'call_logged' || body.type === 'call_made') &&
+      (body.metadata as Record<string, unknown> | undefined)?.outcome === 'callback_requested'
+    ) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: body.leadId },
+        select: { firstName: true, lastName: true },
+      });
+      if (lead) {
+        await prisma.task.create({
+          data: {
+            leadId: body.leadId,
+            userId: user.id,
+            type: 'phone',
+            title: `Callback: ${lead.firstName} ${lead.lastName}`,
+            description: 'Callback requested on previous call',
+            dueDate: nextBusinessDay(new Date()),
+            priority: 'high',
+          },
+        });
+      }
+    }
+
+    return NextResponse.json(activity, { status: 201 });
+  } catch (err) {
+    return handleApiError('api/activities POST', err);
+  }
 }

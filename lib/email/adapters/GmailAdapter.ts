@@ -5,6 +5,8 @@ interface GmailConfig {
   accessToken: string;
   refreshToken: string;
   tokenExpiry?: Date;
+  /** EmailAccount.id — used to persist refreshed tokens back to the DB. */
+  accountId?: string;
 }
 
 /**
@@ -31,11 +33,26 @@ export class GmailAdapter implements EmailAdapter {
       expiry_date: this.config.tokenExpiry?.getTime(),
     });
 
+    oauth2Client.on('tokens', async (tokens) => {
+      if (tokens.access_token && this.config.accountId) {
+        const { prisma } = await import('@/lib/prisma');
+        await prisma.emailAccount.update({
+          where: { id: this.config.accountId },
+          data: {
+            accessToken: tokens.access_token,
+            tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+          },
+        });
+      }
+    });
+
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     const messageParts = [
       `From: ${options.from}`,
       `To: ${options.to}`,
+      ...(options.replyTo ? [`Reply-To: ${options.replyTo}`] : []),
       `Subject: ${options.subject}`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=UTF-8',
@@ -67,6 +84,21 @@ export class GmailAdapter implements EmailAdapter {
       refresh_token: this.config.refreshToken,
       expiry_date: this.config.tokenExpiry?.getTime(),
     });
+
+    oauth2Client.on('tokens', async (tokens) => {
+      if (tokens.access_token && this.config.accountId) {
+        const { prisma } = await import('@/lib/prisma');
+        await prisma.emailAccount.update({
+          where: { id: this.config.accountId },
+          data: {
+            accessToken: tokens.access_token,
+            tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+          },
+        });
+      }
+    });
+
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     const list = await gmail.users.messages.list({

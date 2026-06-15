@@ -14,19 +14,23 @@ export async function GET(
 
   const { id } = await params;
 
-  const sequence = await prisma.sequence.findUnique({
-    where: { id },
-    include: {
-      steps: {
-        orderBy: { order: 'asc' },
-        include: { template: { select: { id: true, name: true, channel: true } } },
+  try {
+    const sequence = await prisma.sequence.findUnique({
+      where: { id },
+      include: {
+        steps: {
+          orderBy: { order: 'asc' },
+          include: { template: { select: { id: true, name: true, channel: true } } },
+        },
+        _count: { select: { leads: true } },
       },
-      _count: { select: { leads: true } },
-    },
-  });
+    });
 
-  if (!sequence) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(sequence);
+    if (!sequence) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(sequence);
+  } catch (err) {
+    return handleApiError('api/sequences/[id] GET', err);
+  }
 }
 
 export async function PUT(

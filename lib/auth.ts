@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { computeVisibleUserIds } from '@/lib/podScoping';
 
 export type SessionUser = {
   id: string;
@@ -53,8 +54,7 @@ export async function requireManager(): Promise<SessionUser | NextResponse> {
   return user;
 }
 
-export { computeVisibleUserIds } from '@/lib/podScoping';
-import { computeVisibleUserIds } from '@/lib/podScoping';
+export { computeVisibleUserIds };
 
 /**
  * The user IDs this viewer may see, or `null` for unrestricted.
