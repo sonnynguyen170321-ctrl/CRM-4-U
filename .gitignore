@@ -48,3 +48,11 @@ next-env.d.ts
 
 # ECC Installer Repository
 Claude-Everything-setup/
+
+# Playwright MCP browser audit artifacts (screenshots, snapshots)
+.playwright-mcp/
+final-dashboard.png
+final-leads.png
+final-team.png
+final-templates.png
+sidebar-1024px.png
