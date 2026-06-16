@@ -116,6 +116,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [logNote, setLogNote] = useState('');
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
+  const [adHocActivities, setAdHocActivities] = useState<Array<{
+    id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
+    user: { firstName: string; lastName: string };
+  }>>([]);
 
   useEffect(() => {
     if (!leadId) {
@@ -128,7 +132,8 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       .then((data) => {
         if (data) {
           setLead(data);
-          setNotes(data.notes ?? []);
+          const sorted = (data.notes ?? []).sort((a: NoteItem, b: NoteItem) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setNotes(sorted);
           setTasks(data.tasks ?? []);
         }
       })
@@ -145,6 +150,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       .then((data: ReminderItem[]) => setReminders((data ?? []).filter((r) => !r.isDismissed)))
       .catch(() => setReminders([]));
 
+    fetch(`/api/activities?leadId=${leadId}&limit=50`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Array<{ id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string; user: { firstName: string; lastName: string } }>) =>
+        setAdHocActivities((data ?? []).filter((a) => a.metadata && (a.metadata as Record<string, unknown>).action))
+      )
+      .catch(() => setAdHocActivities([]));
+
     if (users.length === 0) {
       fetch('/api/users')
         .then((r) => (r.ok ? r.json() : []))
@@ -157,7 +169,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     interface TimelineItem {
       id: string;
       date: string;
-      type: 'note' | 'task_completed' | 'task_skipped' | 'task_pending';
+      type: 'note' | 'task_completed' | 'task_skipped' | 'task_pending' | 'activity';
       title: string;
       description: string;
       isPinned?: boolean;
@@ -201,8 +213,27 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       });
     });
 
-    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [notes, tasks]);
+    adHocActivities.forEach((a) => {
+      const channelLabel = a.channel ? a.channel.charAt(0).toUpperCase() + a.channel.slice(1) : '';
+      const action = (a.metadata.action as string) || '';
+      const notes = (a.metadata.notes as string) || '';
+      list.push({
+        id: a.id,
+        date: a.createdAt,
+        type: 'activity',
+        title: `${a.user.firstName} ${a.user.lastName} — ${channelLabel}: ${action.replace(/_/g, ' ')}`,
+        description: notes,
+        channel: a.channel,
+      });
+    });
+
+    return list.sort((a, b) => {
+      const aPinned = a.type === 'note' && a.isPinned;
+      const bPinned = b.type === 'note' && b.isPinned;
+      if (bPinned !== aPinned) return bPinned ? 1 : -1;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }, [notes, tasks, adHocActivities]);
 
   if (!leadId) return null;
 
@@ -229,7 +260,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     });
     if (res.ok) {
       const created = await res.json();
-      setNotes((prev) => [created, ...prev]);
+      setNotes((prev) => {
+        const updated = [created, ...prev];
+        return updated.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
       setNewNote('');
     } else {
       showToast('Failed to add note', 'error');
@@ -255,7 +289,11 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   };
 
   const handleAddReminder = async () => {
-    if (!lead || !newReminderText.trim() || !newReminderDate) return;
+    if (!lead) return;
+    if (!newReminderText.trim() || !newReminderDate) {
+      showToast('Please enter reminder text and a due date', 'error');
+      return;
+    }
     setSavingReminder(true);
     try {
       const res = await fetch('/api/reminders', {
@@ -342,6 +380,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         }),
       });
       showToast('Activity logged', 'success');
+      setAdHocActivities((prev) => [{
+        id: Date.now().toString(),
+        type: typeMap[logChannel],
+        channel: logChannel,
+        metadata: { action: logAction, response_received: logResponse, notes: logNote || undefined },
+        createdAt: new Date().toISOString(),
+        user: { firstName: '', lastName: '' },
+      }, ...prev]);
       setShowLogActivity(false);
       setLogAction('');
       setLogNote('');
@@ -1007,6 +1053,8 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         ? 'bg-green-500 text-white'
                         : item.type === 'task_skipped'
                         ? 'bg-card-border text-text-muted'
+                        : item.type === 'activity'
+                        ? 'bg-emerald-500 text-white'
                         : 'bg-brand-orange text-white';
 
                     const icon =
@@ -1016,6 +1064,8 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         ? '✓'
                         : item.type === 'task_skipped'
                         ? '⏭'
+                        : item.type === 'activity'
+                        ? '⚡'
                         : '⏳';
 
                     return (

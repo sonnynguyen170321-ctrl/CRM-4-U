@@ -44,8 +44,8 @@ export async function PUT(req: NextRequest) {
   if (firstName !== undefined && (firstName.length < 1 || firstName.length > 120)) {
     return NextResponse.json({ error: 'firstName must be 1-120 characters' }, { status: 400 });
   }
-  if (lastName !== undefined && (lastName.length < 1 || lastName.length > 120)) {
-    return NextResponse.json({ error: 'lastName must be 1-120 characters' }, { status: 400 });
+  if (lastName !== undefined && lastName.length > 120) {
+    return NextResponse.json({ error: 'lastName must be 120 characters or fewer' }, { status: 400 });
   }
   if (timezone !== undefined && timezone.length > 60) {
     return NextResponse.json({ error: 'timezone too long' }, { status: 400 });

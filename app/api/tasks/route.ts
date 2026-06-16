@@ -65,6 +65,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ dueDate: 'asc' }],
     });
 
+    if (tab === 'overdue') {
+      return NextResponse.json(tasks);
+    }
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
     const sorted = tasks.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
 

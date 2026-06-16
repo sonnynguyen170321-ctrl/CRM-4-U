@@ -195,13 +195,15 @@ export default function TemplatesPage() {
     }
   };
 
-  const getPreviewText = () => {
-    let preview = body;
+  const applyMergeFields = (text: string) => {
+    let result = text;
     Object.entries(PREVIEW_DATA).forEach(([key, value]) => {
-      preview = preview.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), value);
+      result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), value);
     });
-    return preview;
+    return result;
   };
+
+  const getPreviewText = () => applyMergeFields(body);
 
   const filteredTemplates = templates.filter((t) => {
     const matchesChannel = filterChannel === 'all' || t.channel === filterChannel;
@@ -526,7 +528,7 @@ export default function TemplatesPage() {
                         <div className="border-b border-card-border/60 pb-3">
                           <p className="text-text-muted">
                             <span className="font-semibold uppercase font-mono text-[10px]">Subject: </span>
-                            {subject || '(No Subject)'}
+                            {applyMergeFields(subject) || '(No Subject)'}
                           </p>
                         </div>
                       )}
