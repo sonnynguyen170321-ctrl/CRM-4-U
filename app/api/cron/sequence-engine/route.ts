@@ -12,38 +12,81 @@ const LOCK_STALE_MS = 10 * 60 * 1000;
 async function createDailyNotifications(now: Date): Promise<number> {
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
-
-  const overdueTasks = await prisma.task.findMany({
-    where: { status: 'pending', dueDate: { lt: now } },
-    select: { userId: true },
-  });
-  if (overdueTasks.length === 0) return 0;
-
-  const countByUser = new Map<string, number>();
-  for (const t of overdueTasks) {
-    countByUser.set(t.userId, (countByUser.get(t.userId) ?? 0) + 1);
-  }
-
-  const existing = await prisma.notification.findMany({
-    where: { type: 'task_overdue', createdAt: { gte: startOfDay } },
-    select: { userId: true },
-  });
-  const alreadyNotified = new Set(existing.map((n) => n.userId));
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setHours(23, 59, 59, 999);
 
   let created = 0;
-  for (const [userId, count] of countByUser.entries()) {
-    if (alreadyNotified.has(userId)) continue;
-    await prisma.notification.create({
-      data: {
-        userId,
-        type: 'task_overdue',
-        title: 'Overdue Tasks',
-        text: `You have ${count} overdue task${count === 1 ? '' : 's'} that need${count === 1 ? 's' : ''} attention.`,
-        linkTo: '/',
-      },
+
+  // task_overdue — one notification per SDR per day for all overdue pending tasks
+  const overdueTasks = await prisma.task.findMany({
+    where: { status: 'pending', dueDate: { lt: startOfDay } },
+    select: { userId: true },
+  });
+
+  if (overdueTasks.length > 0) {
+    const countByUser = new Map<string, number>();
+    for (const t of overdueTasks) {
+      countByUser.set(t.userId, (countByUser.get(t.userId) ?? 0) + 1);
+    }
+
+    const existing = await prisma.notification.findMany({
+      where: { type: 'task_overdue', createdAt: { gte: startOfDay } },
+      select: { userId: true },
     });
-    created++;
+    const alreadyNotified = new Set(existing.map((n) => n.userId));
+
+    for (const [userId, count] of countByUser.entries()) {
+      if (alreadyNotified.has(userId)) continue;
+      await prisma.notification.create({
+        data: {
+          userId,
+          type: 'task_overdue',
+          title: 'Overdue Tasks',
+          text: `You have ${count} overdue task${count === 1 ? '' : 's'} that need${count === 1 ? 's' : ''} attention.`,
+          linkTo: '/',
+        },
+      });
+      created++;
+    }
   }
+
+  // sequence_step_due — one notification per SDR per day when they have sequence tasks due today
+  const seqTasksDueToday = await prisma.task.findMany({
+    where: {
+      status: 'pending',
+      sequenceId: { not: null },
+      dueDate: { gte: startOfDay, lte: endOfDay },
+    },
+    select: { userId: true },
+  });
+
+  if (seqTasksDueToday.length > 0) {
+    const seqCountByUser = new Map<string, number>();
+    for (const t of seqTasksDueToday) {
+      seqCountByUser.set(t.userId, (seqCountByUser.get(t.userId) ?? 0) + 1);
+    }
+
+    const existingSeq = await prisma.notification.findMany({
+      where: { type: 'sequence_step_due', createdAt: { gte: startOfDay } },
+      select: { userId: true },
+    });
+    const alreadyNotifiedSeq = new Set(existingSeq.map((n) => n.userId));
+
+    for (const [userId, count] of seqCountByUser.entries()) {
+      if (alreadyNotifiedSeq.has(userId)) continue;
+      await prisma.notification.create({
+        data: {
+          userId,
+          type: 'sequence_step_due',
+          title: 'Sequence Steps Due Today',
+          text: `You have ${count} sequence step${count === 1 ? '' : 's'} due today.`,
+          linkTo: '/',
+        },
+      });
+      created++;
+    }
+  }
+
   return created;
 }
 
