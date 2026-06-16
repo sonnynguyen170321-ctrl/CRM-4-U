@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
         user: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: [{ dueDate: 'asc' }],
+      take: 500,
     });
 
     if (tab === 'overdue') {

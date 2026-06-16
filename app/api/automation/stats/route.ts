@@ -31,10 +31,21 @@ export async function GET(_req: NextRequest) {
       }),
     ]);
 
-    // 2. Fetch email account statuses
+    // 2. Fetch email account statuses (active only; exclude credential fields)
     const emailAccounts = await prisma.emailAccount.findMany({
+      where: { isActive: true },
       orderBy: { email: 'asc' },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        provider: true,
+        isActive: true,
+        lastSyncAt: true,
+        dailySendCount: true,
+        hourlySendWindow: true,
+        imapServer: true,
+        smtpServer: true,
+        createdAt: true,
         user: {
           select: {
             id: true,

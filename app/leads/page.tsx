@@ -15,9 +15,11 @@ import {
 import Linkedin from '@/components/icons/Linkedin';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
+import dynamic from 'next/dynamic';
 import LeadDetailPanel from '@/components/LeadDetailPanel';
 import NewLeadModal from '@/components/NewLeadModal';
-import CSVImportModal from '@/components/CSVImportModal';
+
+const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
 
 interface Lead {
   id: string;

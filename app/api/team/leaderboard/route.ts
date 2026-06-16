@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
     select: {
       userId: true,
       type: true
-    }
+    },
+    take: 2000,
   });
 
   const scopedUsers = allUsers.filter((u) => targetIds.includes(u.id) && ['sdr', 'team_lead', 'floor_manager', 'leadgen'].includes(u.role));
