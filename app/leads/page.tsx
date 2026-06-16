@@ -652,7 +652,7 @@ export default function LeadsPage() {
                       onClick={() => setSelectedLeadId(lead.id)}
                       className={`hover:bg-background/40 cursor-pointer table-row-dense ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.025]' : ''}`}
                     >
-                      <td className="p-3" onClick={(e) => { e.stopPropagation(); toggleLeadSelect(lead.id); }}>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedLeads.has(lead.id)}
