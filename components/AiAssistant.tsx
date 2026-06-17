@@ -174,6 +174,15 @@ export default function AiAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // If the panel is open and onboarding is active but has no messages (race between
+  // memory fetch and click), inject the intro message so the SDR isn't staring at blank.
+  useEffect(() => {
+    if (isOpen && isOnboarding && messages.length === 0) {
+      setMessages([{ role: 'assistant', content: `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n**Question 1 of 5:** What campaign or client are you currently working on?` }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isOnboarding]);
+
   // Close model menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -248,12 +257,15 @@ export default function AiAssistant() {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [setupComplete, messages.length, fireMorningBriefing]);
 
-  const ONBOARDING_QUESTIONS = [
-    `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n**Question 1 of 5:** What campaign or client are you currently working on?`,
-    `Got it! **Question 2 of 5:** Who is your ideal buyer — their job title and type of company?`,
-    `Perfect. **Question 3 of 5:** In 1–2 sentences, what problem does your product or service solve for them?`,
-    `Nice. **Question 4 of 5:** What outreach channels do you use and in what order? (e.g., "LinkedIn first, then email, then WhatsApp")`,
-    `Almost done! **Question 5 of 5:** Any personal preferences I should know about? (e.g., tone, things to avoid, how you like to work)`,
+  // Onboarding intro shown on first question — uses firstName so defined inside component
+  const ONBOARDING_INTRO = `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n**Question 1 of 5:** What campaign or client are you currently working on?`;
+
+  const ONBOARDING_QUESTION_PROMPTS = [
+    `**Question 1 of 5:** What campaign or client are you currently working on?`,
+    `**Question 2 of 5:** Who is your ideal buyer — their job title and type of company?`,
+    `**Question 3 of 5:** In 1–2 sentences, what problem does your product or service solve for them?`,
+    `**Question 4 of 5:** What outreach channels do you use and in what order? (e.g., "LinkedIn first, then email, then WhatsApp")`,
+    `**Question 5 of 5:** Any personal preferences I should know about? (e.g., tone, things to avoid, how you like to work)`,
   ];
 
   const ONBOARDING_MEMORY_KEYS = [
@@ -267,44 +279,86 @@ export default function AiAssistant() {
   function startOnboarding() {
     setIsOnboarding(true);
     setOnboardingStep(0);
-    setMessages([{ role: 'assistant', content: ONBOARDING_QUESTIONS[0] }]);
+    setMessages([{ role: 'assistant', content: ONBOARDING_INTRO }]);
   }
 
   async function handleOnboardingAnswer(answer: string) {
-    const key = ONBOARDING_MEMORY_KEYS[onboardingStep];
-    const memory = `${key}: ${answer}`;
-    await fetch('/api/ai/memory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memory }),
-    });
+    // Show user message + loading dots immediately
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: answer },
+      { role: 'assistant', content: '' },
+    ]);
+    setIsStreaming(true);
 
-    const nextStep = onboardingStep + 1;
-
-    if (nextStep >= ONBOARDING_QUESTIONS.length) {
-      await fetch('/api/ai/memory', {
+    try {
+      const res = await fetch('/api/ai/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memory: 'setup_complete: true' }),
+        body: JSON.stringify({
+          questionKey: ONBOARDING_MEMORY_KEYS[onboardingStep],
+          answer,
+          firstName,
+        }),
       });
 
-      const summary = `All set! Here's what I'll keep in mind:\n\n📋 I've saved your campaign context, target buyer, value prop, preferred channels, and communication preferences.\n\nI'll use all of this every time I help you — no need to explain it again.\n\nYou can say "update my context" or "reset my setup" any time to change anything.\n\nNow — want to start with your tasks for today, or is there something specific I can help with right now?`;
+      const { valid, message } = await res.json() as { valid: boolean; message: string };
 
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: answer },
-        { role: 'assistant', content: summary },
-      ]);
-      setSetupComplete(true);
-      setIsOnboarding(false);
-      setOnboardingStep(0);
-    } else {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: answer },
-        { role: 'assistant', content: ONBOARDING_QUESTIONS[nextStep] },
-      ]);
-      setOnboardingStep(nextStep);
+      if (valid) {
+        // Save the validated answer as memory
+        await fetch('/api/ai/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memory: `${ONBOARDING_MEMORY_KEYS[onboardingStep]}: ${answer}` }),
+        });
+
+        const nextStep = onboardingStep + 1;
+
+        if (nextStep >= ONBOARDING_QUESTION_PROMPTS.length) {
+          // All 5 questions answered — mark setup complete
+          await fetch('/api/ai/memory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ memory: 'setup_complete: true' }),
+          });
+
+          const fullMessage = `${message}\n\n✅ All set! I've saved your campaign context, target buyer, value prop, preferred channels, and preferences. I'll use these in every response — no need to repeat yourself.\n\nYou can say "reset my setup" any time to change anything.\n\nWhat would you like help with first?`;
+
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: fullMessage };
+            return updated;
+          });
+          setSetupComplete(true);
+          setIsOnboarding(false);
+          setOnboardingStep(0);
+        } else {
+          // Advance to the next question, show AI confirmation + next prompt
+          const fullMessage = `${message}\n\n${ONBOARDING_QUESTION_PROMPTS[nextStep]}`;
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: fullMessage };
+            return updated;
+          });
+          setOnboardingStep(nextStep);
+        }
+      } else {
+        // Answer was invalid — show the challenge, stay on same step (don't advance)
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: message };
+          return updated;
+        });
+      }
+    } catch {
+      // Fail open — don't leave the SDR stuck
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content: 'Got it, let\'s keep going.' };
+        return updated;
+      });
+    } finally {
+      setIsStreaming(false);
     }
   }
 

@@ -497,8 +497,10 @@ model AiMemory {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   memory    String
   createdAt DateTime @default(now())
+  tenantId  String   @default("default-tenant")
 
   @@index([userId])
+  @@index([tenantId])
 }
 
 // ─── Tenant ──────────────────────────────────────────────────────────────────
