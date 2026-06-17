@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AppProvider } from "@/context/AppContext";
 import { ToastProvider } from "@/context/ToastContext";
 import CommandPalette from "@/components/CommandPalette";
+import AiAssistant from "@/components/AiAssistant";
 import DashboardShell from "@/components/DashboardShell";
 
 export const metadata: Metadata = {
@@ -46,6 +47,7 @@ export default function RootLayout({
                   {children}
                 </DashboardShell>
                 <CommandPalette />
+                <AiAssistant />
               </ToastProvider>
             </ThemeProvider>
           </AppProvider>

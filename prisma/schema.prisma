@@ -133,6 +133,7 @@ model User {
   templates      Template[]
   campaignSdrs   CampaignSdr[]
   auditLogs      AuditLog[]
+  aiMemories     AiMemory[]
 
   @@index([tenantId])
 }
@@ -486,6 +487,18 @@ model AuditLog {
   @@index([tableName, recordId])
   @@index([createdAt])
   @@index([tenantId])
+}
+
+// ─── AI SDR Assistant — Per-User Memory ─────────────────────────────────────
+
+model AiMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memory    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ─── Tenant ──────────────────────────────────────────────────────────────────

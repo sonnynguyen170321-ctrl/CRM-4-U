@@ -124,6 +124,8 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   useEffect(() => {
     if (!leadId) {
       setLead(null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__crm_lead_context = null;
       return;
     }
     setLoading(true);
@@ -135,6 +137,21 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           const sorted = (data.notes ?? []).sort((a: NoteItem, b: NoteItem) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setNotes(sorted);
           setTasks(data.tasks ?? []);
+
+          // Set AI assistant context for the open lead
+          const daysSince = data.lastContactedAt
+            ? Math.floor((Date.now() - new Date(data.lastContactedAt).getTime()) / 86400000)
+            : null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__crm_lead_context = {
+            leadId: data.id,
+            leadName: `${data.firstName} ${data.lastName}`,
+            leadCompany: data.company,
+            leadStage: data.stage,
+            ...(daysSince !== null && { leadDaysSinceContact: daysSince }),
+            ...(data.campaign?.name && { campaignName: data.campaign.name }),
+            ...(data.campaign?.client?.name && { clientName: data.campaign.client.name }),
+          };
         }
       })
       .catch(() => showToast('Failed to load lead details', 'error'))

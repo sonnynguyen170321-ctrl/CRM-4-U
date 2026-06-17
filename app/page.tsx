@@ -103,10 +103,22 @@ export default function DashboardPage() {
     }
     const results = await Promise.all(fetches);
     const [today, yesterday, overdue, acts] = results;
-    setTodayTasks(Array.isArray(today) ? today : []);
+    const todayArr = Array.isArray(today) ? today : [];
+    const overdueArr = Array.isArray(overdue) ? overdue : [];
+    const actsArr = Array.isArray(acts) ? acts : [];
+    setTodayTasks(todayArr);
     setYesterdayTasks(Array.isArray(yesterday) ? yesterday : []);
-    setOverdueTasks(Array.isArray(overdue) ? overdue : []);
-    setActivities(Array.isArray(acts) ? acts : []);
+    setOverdueTasks(overdueArr);
+    setActivities(actsArr);
+
+    // Expose live stats for the AI Assistant widget
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__crm_sdr_stats = {
+      overdueTasks: overdueArr.length,
+      todayTasks: todayArr.length,
+      sdrCallsToday: actsArr.filter((a: { type: string }) => a.type === 'call_logged').length,
+      sdrEmailsToday: actsArr.filter((a: { type: string }) => a.type === 'email_sent').length,
+    };
     if (!isManager && results[4]) {
       const leadList: any[] = Array.isArray(results[4]) ? results[4] : [];
       const counts: Record<string, number> = {};
