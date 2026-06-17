@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+import { useAppContext } from '@/context/AppContext';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
 import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/provider';
 import type { ModelId } from '@/lib/ai/provider';
@@ -107,7 +107,7 @@ function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: 
 }
 
 export default function AiAssistant() {
-  const { data: session } = useSession();
+  const { currentUserId, currentUser, currentRole, isSessionLoading } = useAppContext();
   const pathname = usePathname();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -127,9 +127,14 @@ export default function AiAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  // Prevents React StrictMode from double-firing the memory fetch in dev
+  const memoryFetchedRef = useRef(false);
 
-  const user = session?.user as { firstName?: string; lastName?: string; role?: string } | undefined;
-  const firstName = user?.firstName || 'there';
+  const firstName = currentUser?.firstName || 'there';
+
+  function bustMemCache() {
+    try { sessionStorage.removeItem(`ai_mem_${currentUserId || 'anon'}`); } catch { /* ignore */ }
+  }
 
   const getCrmContext = useCallback(() => {
     const w = typeof window !== 'undefined' ? (window as unknown as Record<string, Record<string, unknown> | null>) : null;
@@ -138,36 +143,52 @@ export default function AiAssistant() {
     return {
       page: pathname,
       userName: firstName,
-      userRole: user?.role || 'sdr',
+      userRole: currentRole,
       ...(sdrStats || {}),
       ...(leadCtx || {}),
     };
-  }, [pathname, firstName, user?.role]);
+  }, [pathname, firstName, currentRole]);
 
-  // Load memories and setup state on mount
+  // Load memories and setup state on mount — guarded against login page and StrictMode double-invoke
   useEffect(() => {
-    if (!session) return;
+    if (!currentUserId || pathname === '/login') return;
+    if (memoryFetchedRef.current) return;
+    memoryFetchedRef.current = true;
+
+    const cacheKey = `ai_mem_${currentUserId}`;
+
+    function applyMemories(mems: string[]) {
+      const nameMem = mems.find((m) => m.startsWith('assistant_name: '));
+      if (nameMem) setAssistantName(nameMem.replace('assistant_name: ', ''));
+
+      const modelMem = mems.find((m) => m.startsWith('preferred_model: '));
+      if (modelMem) {
+        const saved = modelMem.replace('preferred_model: ', '') as ModelId;
+        if (MODELS.includes(saved)) setModelId(saved);
+      }
+
+      const isDone = mems.some((m) => m === 'setup_complete: true');
+      setSetupComplete(isDone);
+      if (!isDone) setIsOnboarding(true);
+    }
+
+    // Serve from sessionStorage cache on repeat visits — avoids cold DB hit
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        applyMemories(JSON.parse(cached));
+        return;
+      }
+    } catch { /* sessionStorage unavailable */ }
 
     fetch('/api/ai/memory')
       .then((r) => r.json())
       .then((mems: string[]) => {
-        const nameMem = mems.find((m) => m.startsWith('assistant_name: '));
-        if (nameMem) setAssistantName(nameMem.replace('assistant_name: ', ''));
-
-        const modelMem = mems.find((m) => m.startsWith('preferred_model: '));
-        if (modelMem) {
-          const saved = modelMem.replace('preferred_model: ', '') as ModelId;
-          if (MODELS.includes(saved)) setModelId(saved);
-        }
-
-        const isDone = mems.some((m) => m === 'setup_complete: true');
-        setSetupComplete(isDone);
-        if (!isDone) {
-          setIsOnboarding(true);
-        }
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(mems)); } catch { /* ignore */ }
+        applyMemories(mems);
       })
       .catch(() => setSetupComplete(true));
-  }, [session]);
+  }, [currentUserId, pathname]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -310,7 +331,7 @@ export default function AiAssistant() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ memory: `${ONBOARDING_MEMORY_KEYS[onboardingStep]}: ${answer}` }),
-        });
+        }).then(() => bustMemCache());
 
         const nextStep = onboardingStep + 1;
 
@@ -320,7 +341,7 @@ export default function AiAssistant() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ memory: 'setup_complete: true' }),
-          });
+          }).then(() => bustMemCache());
 
           const fullMessage = `${message}\n\n✅ All set! I've saved your campaign context, target buyer, value prop, preferred channels, and preferences. I'll use these in every response — no need to repeat yourself.\n\nYou can say "reset my setup" any time to change anything.\n\nWhat would you like help with first?`;
 
@@ -371,6 +392,8 @@ export default function AiAssistant() {
     const lower = content.toLowerCase();
     if (lower.includes('reset my context') || lower.includes('redo my setup') || lower.includes('reset my setup')) {
       await fetch('/api/ai/memory', { method: 'DELETE' });
+      bustMemCache();
+      memoryFetchedRef.current = false;
       setSetupComplete(false);
       const resetMsg = { role: 'assistant' as const, content: `Memory cleared. Let's start fresh — I'll ask you the setup questions again.` };
       setMessages((prev) => [...prev, { role: 'user', content }, resetMsg]);
@@ -394,7 +417,7 @@ export default function AiAssistant() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memory: content }),
-      }).catch(() => {});
+      }).then(() => bustMemCache()).catch(() => {});
     }
 
     // Handle EOD summary trigger
@@ -469,7 +492,7 @@ export default function AiAssistant() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ memory: `preferred_model: ${id}` }),
-    }).catch(() => {});
+    }).then(() => bustMemCache()).catch(() => {});
   }
 
   async function handleFeedback(idx: number, type: 'up' | 'down') {
@@ -487,7 +510,7 @@ export default function AiAssistant() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memory: `feedback: response was not helpful — context: "${msg.content.slice(0, 100)}"` }),
-      }).catch(() => {});
+      }).then(() => bustMemCache()).catch(() => {});
     }
   }
 
@@ -498,7 +521,7 @@ export default function AiAssistant() {
   const hasLead = typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>).__crm_lead_context;
   const chips = getContextChips(pathname, hasLead);
 
-  if (!session) return null;
+  if (isSessionLoading || !currentUserId || pathname === '/login') return null;
 
   return (
     <>

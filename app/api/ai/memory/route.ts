@@ -17,7 +17,9 @@ export async function GET() {
       take: MAX_MEMORIES,
     });
 
-    return NextResponse.json(memories.map((m) => m.memory));
+    return NextResponse.json(memories.map((m) => m.memory), {
+      headers: { 'Cache-Control': 'private, max-age=300' },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[ai/memory GET]', message);
