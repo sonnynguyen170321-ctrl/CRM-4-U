@@ -33,10 +33,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOverrideRole(null);
   }, [sessionRole]);
 
-  // In dev/demo mode, default to the director persona so the app is usable without login
-  const isDemoMode = process.env.NODE_ENV !== 'production';
-  const currentRole: UserRole = overrideRole ?? sessionRole ?? (isDemoMode ? 'director' : 'sdr');
-  const currentUserId: string = (session?.user as any)?.id ?? (isDemoMode ? 'u1' : '');
+  const currentRole: UserRole = overrideRole ?? sessionRole ?? 'sdr';
+  const currentUserId: string = (session?.user as any)?.id ?? '';
   const isManager: boolean = currentRole !== 'sdr' && currentRole !== 'leadgen';
   const currentUser = session?.user
     ? {
@@ -44,13 +42,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastName: (session.user as any).lastName ?? '',
         email: session.user.email ?? '',
       }
-    : isDemoMode
-    ? { firstName: 'Son', lastName: 'Nguyen', email: 'son@telestar.co' }
     : null;
 
   const setRole = (role: UserRole) => {
-    // Allow demo persona switching for directors; others always see their real role
-    if (sessionRole === 'director' || sessionRole === 'floor_manager' || !sessionRole) {
+    if (sessionRole === 'director' || sessionRole === 'floor_manager') {
       setOverrideRole(role);
     }
   };

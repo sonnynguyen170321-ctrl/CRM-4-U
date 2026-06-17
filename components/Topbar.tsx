@@ -14,7 +14,9 @@ import {
   ChevronDown,
   AlarmClock,
   X,
+  LogOut,
 } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 import { useTheme, Theme } from '@/context/ThemeContext';
 import { useAppContext } from '@/context/AppContext';
 
@@ -528,6 +530,15 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                     {theme === t && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
                   </button>
                 ))}
+                <div className="my-1 border-t border-card-border" />
+                <button
+                  role="menuitem"
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="w-full text-left px-4 py-2 text-xs text-brand-red hover:bg-brand-red/5 transition-colors flex items-center gap-2"
+                >
+                  <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+                  Sign Out
+                </button>
               </div>
             </>
           )}
