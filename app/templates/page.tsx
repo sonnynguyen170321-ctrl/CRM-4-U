@@ -156,8 +156,8 @@ export default function TemplatesPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        subject: selectedTemp.channel === 'email' ? subject : null,
-        body,
+        subjectB: selectedTemp.channel === 'email' ? subject : null,
+        bodyB: body,
       }),
     });
     setCreatingAb(false);

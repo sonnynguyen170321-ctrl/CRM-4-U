@@ -59,7 +59,7 @@ export default function SequencesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
 
   const loadSequences = useCallback(async () => {
-    const res = await fetch('/api/sequences');
+    const res = await fetch('/api/sequences', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       setSequences(Array.isArray(data) ? data : []);

@@ -369,6 +369,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       const typeMap: Record<string, string> = {
         email: 'email_sent', phone: 'call_logged', linkedin: 'linkedin_touch', whatsapp: 'whatsapp_message',
       };
+      const channelLabels: Record<string, string> = {
+        email: 'Email', phone: 'Call', linkedin: 'LinkedIn', whatsapp: 'WhatsApp',
+      };
+      const generatedDescription = `${channelLabels[logChannel] || logChannel} activity logged — ${logAction}${logNote ? `: ${logNote}` : ''}`;
       await fetch('/api/activities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -376,6 +380,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           leadId: lead.id,
           type: typeMap[logChannel],
           channel: logChannel,
+          description: generatedDescription,
           metadata: { action: logAction, response_received: logResponse, notes: logNote || undefined },
         }),
       });

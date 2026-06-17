@@ -622,7 +622,7 @@ export default function DashboardPage() {
                       </span>
                       <div className="min-w-0">
                         <p className="text-text-primary leading-normal">
-                          <span className="font-semibold">{act.user?.firstName}</span>{' '}{act.description}
+                          <span className="font-semibold">{act.user?.firstName}</span>{' '}{act.description || act.type?.replace(/_/g, ' ')}
                         </p>
                         {act.metadata?.outcome && (
                           <p className="text-xs text-text-muted font-mono mt-0.5">Outcome: {act.metadata.outcome}</p>
