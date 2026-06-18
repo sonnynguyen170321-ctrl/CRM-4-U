@@ -76,14 +76,38 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
 
-    const response = await groq.chat.completions.create({
-      model: opts.modelId,
-      messages: loopMessages,
-      tools: AI_TOOLS as Parameters<typeof groq.chat.completions.create>[0]['tools'],
-      tool_choice: 'auto',
-      max_tokens: 800,
-      stream: false, // need to check for tool calls first
-    });
+    let response: Awaited<ReturnType<typeof groq.chat.completions.create>>;
+    try {
+      response = await groq.chat.completions.create({
+        model: opts.modelId,
+        messages: loopMessages,
+        tools: AI_TOOLS as Parameters<typeof groq.chat.completions.create>[0]['tools'],
+        tool_choice: 'auto',
+        max_tokens: 800,
+        stream: false,
+      });
+    } catch (err: unknown) {
+      // Groq rejects malformed tool calls (old XML format from some model versions).
+      // Retry once without tools to get a plain-text response.
+      const isToolError =
+        err instanceof Error &&
+        (err.message.includes('tool_use_failed') || err.message.includes('tool call validation'));
+      if (isToolError) {
+        const fallback = await groq.chat.completions.create({
+          model: opts.modelId,
+          messages: loopMessages,
+          max_tokens: 800,
+          stream: false,
+        });
+        const content = fallback.choices[0]?.message?.content || '';
+        const words = content.split(' ');
+        for (let i = 0; i < words.length; i += 3) {
+          yield words.slice(i, i + 3).join(' ') + (i + 3 < words.length ? ' ' : '');
+        }
+        return;
+      }
+      throw err;
+    }
 
     const choice = response.choices[0];
 

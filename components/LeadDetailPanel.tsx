@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
+import { useAppContext } from '@/context/AppContext';
 
 interface LeadDetail {
   id: string;
@@ -85,6 +86,7 @@ interface LeadDetailPanelProps {
 }
 
 export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadDetailPanelProps) {
+  const { isManager } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -174,7 +176,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       )
       .catch(() => setAdHocActivities([]));
 
-    if (users.length === 0) {
+    if (isManager && users.length === 0) {
       fetch('/api/users')
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => setUsers(Array.isArray(data) ? data : []))

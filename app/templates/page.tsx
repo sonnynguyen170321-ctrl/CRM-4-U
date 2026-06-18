@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
+import { useAppContext } from '@/context/AppContext';
 
 interface Template {
   id: string;
@@ -49,6 +50,7 @@ const PREVIEW_DATA: Record<string, string> = {
 
 export default function TemplatesPage() {
   const { showToast } = useToast();
+  const { isManager } = useAppContext();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemp, setSelectedTemp] = useState<Template | null>(null);
   const [name, setName] = useState('');
@@ -95,7 +97,7 @@ export default function TemplatesPage() {
     setCategory(temp.category);
     setActivePane('edit');
     setAbOpen(false);
-    loadAbVariants(temp.id);
+    if (isManager) loadAbVariants(temp.id);
   };
 
   const handleInsertMergeField = (field: string) => {
@@ -431,7 +433,8 @@ export default function TemplatesPage() {
                       </div>
                     )}
 
-                    {/* A/B Testing */}
+                    {/* A/B Testing — managers only */}
+                    {isManager && (
                     <div className="border border-card-border rounded-xl overflow-hidden">
                       <button
                         onClick={() => setAbOpen(!abOpen)}
@@ -493,6 +496,7 @@ export default function TemplatesPage() {
                         </div>
                       )}
                     </div>
+                    )}
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
