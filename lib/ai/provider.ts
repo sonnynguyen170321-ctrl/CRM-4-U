@@ -48,9 +48,28 @@ export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
 
   if (modelId === 'gemini-2.0-flash') {
     yield* streamGemini(opts);
-  } else {
-    yield* streamGroq(opts);
+    return;
   }
+
+  // All Groq models share one daily token quota. If it's exhausted (or any other
+  // rate limit hits), transparently fall back to Gemini, which has its own quota.
+  // streamGroq only yields text after the upstream call resolves, so a thrown
+  // rate-limit error happens before any chunk is emitted — no duplicated output.
+  try {
+    yield* streamGroq(opts);
+  } catch (err) {
+    if (isRateLimitError(err) && process.env.GEMINI_API_KEY) {
+      yield* streamGemini({ ...opts, modelId: 'gemini-2.0-flash' });
+      return;
+    }
+    throw err;
+  }
+}
+
+function isRateLimitError(err: unknown): boolean {
+  if ((err as { status?: number })?.status === 429) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /rate.?limit|\b429\b|tokens per day|\bTPD\b|quota/i.test(msg);
 }
 
 async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
@@ -156,19 +175,24 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
-  // Build Gemini chat history (excluding the last user message)
-  const history = opts.messages.slice(0, -1).map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
-
-  const lastMessage = opts.messages[opts.messages.length - 1];
-  const chat = model.startChat({
-    history,
+  // systemInstruction belongs on the model, not on startChat(). Passing it to
+  // startChat() sends an invalid Content and Gemini rejects it with a 400.
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
     systemInstruction: opts.systemPrompt,
   });
+
+  // Build Gemini chat history (excluding the last user message). Gemini requires
+  // history to begin with a user turn, so drop any leading assistant messages
+  // (e.g. a morning briefing) that would otherwise trigger a 400.
+  const history = opts.messages.slice(0, -1).map((m) => ({
+    role: (m.role === 'assistant' ? 'model' : 'user') as 'model' | 'user',
+    parts: [{ text: m.content }],
+  }));
+  while (history.length > 0 && history[0].role === 'model') history.shift();
+
+  const lastMessage = opts.messages[opts.messages.length - 1];
+  const chat = model.startChat({ history });
 
   const result = await chat.sendMessageStream(lastMessage.content);
   for await (const chunk of result.stream) {

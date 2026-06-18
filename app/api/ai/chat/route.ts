@@ -116,8 +116,14 @@ IMPORTANT REMINDERS:
           controller.enqueue(encoder.encode(chunk));
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'AI error';
-        controller.enqueue(encoder.encode(`\n\nSorry, I ran into an issue: ${msg}`));
+        // Never leak raw provider error payloads (JSON, stack traces) to the SDR.
+        const raw = err instanceof Error ? err.message : 'AI error';
+        const isRate = /rate.?limit|\b429\b|tokens per day|\bTPD\b|quota/i.test(raw);
+        console.error('[ai/chat] stream error:', raw);
+        const friendly = isRate
+          ? "I've hit today's usage limit on the AI models — please try again in a little while."
+          : 'Sorry, I ran into a problem generating that. Please try again in a moment.';
+        controller.enqueue(encoder.encode(friendly));
       } finally {
         controller.close();
       }
