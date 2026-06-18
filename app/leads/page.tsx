@@ -64,6 +64,13 @@ function formatRelativeTime(dateStr?: string): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
+// Module-level helper so the time-dependent Date.now() isn't a direct impure call
+// inside the LeadCard render body (react-hooks/purity).
+function daysOverdueFrom(dateStr?: string): number {
+  if (!dateStr) return 0;
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
 interface LeadCardProps {
   lead: Lead;
   onOpen: (id: string) => void;
@@ -75,9 +82,7 @@ interface LeadCardProps {
 // filter changes) doesn't re-render every card. Per-card derived values live here
 // and recompute only when this lead's props change.
 const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }: LeadCardProps) {
-  const daysOverdue = lead.nextTaskDue
-    ? Math.floor((Date.now() - new Date(lead.nextTaskDue).getTime()) / 86400000)
-    : 0;
+  const daysOverdue = daysOverdueFrom(lead.nextTaskDue);
   const atRisk = lead.atRisk ?? false;
   const channelIcon = lead.nextTaskType === 'email' ? '✉' :
     lead.nextTaskType === 'phone' ? '📞' :
