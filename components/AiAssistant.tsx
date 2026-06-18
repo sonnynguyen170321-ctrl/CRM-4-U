@@ -117,6 +117,7 @@ export default function AiAssistant() {
   const [hasUnread, setHasUnread] = useState(false);
   const [modelId, setModelId] = useState<ModelId>(DEFAULT_MODEL);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [feedbackPendingIdx, setFeedbackPendingIdx] = useState<number | null>(null);
   const [assistantName, setAssistantName] = useState('AI SDR Assistant');
 
   // Onboarding state
@@ -499,19 +500,31 @@ export default function AiAssistant() {
     const msg = messages[idx];
     if (!msg || msg.feedback) return;
 
+    if (type === 'down') {
+      setFeedbackPendingIdx(idx);
+      return;
+    }
+
     setMessages((prev) => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], feedback: type };
       return updated;
     });
+  }
 
-    if (type === 'down') {
-      await fetch('/api/ai/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memory: `feedback: response was not helpful — context: "${msg.content.slice(0, 100)}"` }),
-      }).then(() => bustMemCache()).catch(() => {});
-    }
+  async function handleFeedbackReason(idx: number, reason: string) {
+    const msg = messages[idx];
+    setFeedbackPendingIdx(null);
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], feedback: 'down' };
+      return updated;
+    });
+    await fetch('/api/ai/memory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memory: `feedback: response not helpful (${reason}) — context: "${msg.content.slice(0, 100)}"` }),
+    }).then(() => bustMemCache()).catch(() => {});
   }
 
   function copyToClipboard(text: string) {
@@ -645,29 +658,50 @@ export default function AiAssistant() {
                   </div>
                   {/* AI message actions */}
                   {msg.role === 'assistant' && msg.content && !(isStreaming && idx === messages.length - 1) && (
-                    <div className="flex items-center gap-2 mt-1 px-1">
-                      <button
-                        onClick={() => copyToClipboard(msg.content)}
-                        className="text-zinc-400 hover:text-zinc-600 transition-colors"
-                        title="Copy"
-                      >
-                        <Copy size={12} />
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(idx, 'up')}
-                        className={`transition-colors ${msg.feedback === 'up' ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'}`}
-                        title="Helpful"
-                      >
-                        <ThumbsUp size={12} />
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(idx, 'down')}
-                        className={`transition-colors ${msg.feedback === 'down' ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'}`}
-                        title="Not helpful"
-                      >
-                        <ThumbsDown size={12} />
-                      </button>
-                    </div>
+                    <>
+                      <div className="flex items-center gap-2 mt-1 px-1">
+                        <button
+                          onClick={() => copyToClipboard(msg.content)}
+                          className="text-zinc-400 hover:text-zinc-600 transition-colors"
+                          title="Copy"
+                        >
+                          <Copy size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(idx, 'up')}
+                          className={`transition-colors ${msg.feedback === 'up' ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'}`}
+                          title="Helpful"
+                        >
+                          <ThumbsUp size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(idx, 'down')}
+                          className={`transition-colors ${msg.feedback === 'down' ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'}`}
+                          title="Not helpful"
+                        >
+                          <ThumbsDown size={12} />
+                        </button>
+                      </div>
+                      {feedbackPendingIdx === idx && (
+                        <div className="mt-1.5 px-1 flex flex-wrap gap-1">
+                          {['Too generic', 'Not accurate', 'Too long', 'Not relevant'].map((reason) => (
+                            <button
+                              key={reason}
+                              onClick={() => handleFeedbackReason(idx, reason)}
+                              className="text-[10px] px-2 py-0.5 rounded-full border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors"
+                            >
+                              {reason}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setFeedbackPendingIdx(null)}
+                            className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-500 hover:bg-zinc-700/30 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
