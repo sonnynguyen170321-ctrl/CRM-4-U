@@ -8,6 +8,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import CommandPalette from "@/components/CommandPalette";
 import AiAssistant from "@/components/AiAssistant";
 import DashboardShell from "@/components/DashboardShell";
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   title: {
@@ -52,6 +53,7 @@ export default function RootLayout({
             </ThemeProvider>
           </AppProvider>
         </SessionProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
