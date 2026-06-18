@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import {
   Plus,
   Search,
@@ -16,9 +16,12 @@ import Linkedin from '@/components/icons/Linkedin';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import dynamic from 'next/dynamic';
-import LeadDetailPanel from '@/components/LeadDetailPanel';
-import NewLeadModal from '@/components/NewLeadModal';
 
+// Heavy, interaction-only components — loaded on demand so they don't bloat the
+// initial leads-page bundle. The panel/modal chunks fetch the first time a lead
+// is opened or "Add Lead" is clicked.
+const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
+const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
 const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
 
 interface Lead {
@@ -44,6 +47,140 @@ interface Lead {
   aiLabel?: 'hot' | 'warm' | 'cold';
   aiRecommendation?: string;
 }
+
+// Module-scope constants (stable identity) so they can be omitted from useMemo deps.
+const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
+const STAGE_RANK: Record<string, number> = { new: 0, sequence_active: 1, replied: 2, meeting_booked: 3, won: 4, lost: 5 };
+
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
+interface LeadCardProps {
+  lead: Lead;
+  onOpen: (id: string) => void;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragEnd: () => void;
+}
+
+// Memoized so unrelated parent state (search typing, drag-hover on a column,
+// filter changes) doesn't re-render every card. Per-card derived values live here
+// and recompute only when this lead's props change.
+const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }: LeadCardProps) {
+  const daysOverdue = lead.nextTaskDue
+    ? Math.floor((Date.now() - new Date(lead.nextTaskDue).getTime()) / 86400000)
+    : 0;
+  const atRisk = lead.atRisk ?? false;
+  const channelIcon = lead.nextTaskType === 'email' ? '✉' :
+    lead.nextTaskType === 'phone' ? '📞' :
+    lead.nextTaskType === 'linkedin' ? 'in' :
+    lead.nextTaskType === 'whatsapp' ? '💬' : null;
+  const channelColor = lead.nextTaskType === 'email' ? 'text-blue-500' :
+    lead.nextTaskType === 'phone' ? 'text-green-500' :
+    lead.nextTaskType === 'linkedin' ? 'text-indigo-500' :
+    lead.nextTaskType === 'whatsapp' ? 'text-emerald-500' : 'text-text-muted';
+  const priorityDotColor = lead.priority === 'hot' ? 'bg-brand-red' :
+    lead.priority === 'warm' ? 'bg-brand-gold' : 'bg-blue-400';
+  const assigneeInitials = lead.assignedTo
+    ? `${lead.assignedTo.firstName[0] ?? ''}${lead.assignedTo.lastName[0] ?? ''}`.toUpperCase()
+    : null;
+
+  return (
+    <div
+      onClick={() => onOpen(lead.id)}
+      draggable
+      onDragStart={(e) => onDragStart(e, lead.id)}
+      onDragEnd={onDragEnd}
+      className={`p-2.5 glass-card rounded-xl cursor-grab active:cursor-grabbing hover:border-brand-red/50 hover-lift transition-all duration-200 flex flex-col gap-1.5 relative select-none group ${
+        lead.priority === 'hot' ? 'glow-hot' : ''
+      } ${atRisk ? 'border-amber-500/40' : ''}`}
+    >
+      {/* Row 1: name + at-risk badge */}
+      <div className="flex items-start justify-between gap-1">
+        <p className="font-display font-bold text-[13px] text-text-primary leading-snug">
+          {lead.firstName} {lead.lastName}
+        </p>
+        {atRisk && (
+          <span
+            className="flex-shrink-0 text-[10px] font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1 py-0.5 rounded"
+            title={`Sequence task overdue ${Math.max(daysOverdue, 3)} days`}
+          >
+            ⚠ {Math.max(daysOverdue, 3)}d
+          </span>
+        )}
+      </div>
+
+      {/* Row 2: company · title */}
+      <p className="text-[11px] text-text-muted truncate leading-tight">
+        {lead.company}
+        {lead.title ? <span className="text-text-muted/60"> · {lead.title}</span> : null}
+      </p>
+
+      {/* Row 3: next task channel + last contacted */}
+      {(channelIcon || lead.lastContactedAt) && (
+        <div className="flex items-center gap-1.5">
+          {channelIcon && (
+            <span className={`text-[11px] font-semibold font-mono ${channelColor}`}>{channelIcon}</span>
+          )}
+          {lead.lastContactedAt && (
+            <span className="text-[10px] text-text-muted font-mono">
+              {formatRelativeTime(lead.lastContactedAt)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Row 4: priority dot + quick-action links + SDR avatar */}
+      <div className="flex items-center justify-between pt-1.5 border-t border-card-border/30 mt-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className={`stage-dot ${priorityDotColor}`} title={lead.priority} aria-label={`Priority: ${lead.priority}`} />
+          <span className="text-[10px] text-text-muted font-medium capitalize">{lead.priority}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {/* Quick actions — visible on hover */}
+          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+            <button
+              onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${lead.email}`; }}
+              title="Email"
+              className="text-text-muted hover:text-blue-500 transition-colors text-[11px] p-0.5 rounded"
+              aria-label={`Email ${lead.firstName}`}
+            >
+              ✉
+            </button>
+            {lead.phone && (
+              <button
+                onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${lead.phone}`; }}
+                title="Call"
+                className="text-text-muted hover:text-green-500 transition-colors text-[11px] p-0.5 rounded"
+                aria-label={`Call ${lead.firstName}`}
+              >
+                📞
+              </button>
+            )}
+          </div>
+          {/* SDR avatar */}
+          {assigneeInitials && (
+            <div
+              className="avatar-xs bg-brand-red/10 text-brand-red"
+              title={`${lead.assignedTo?.firstName} ${lead.assignedTo?.lastName}`}
+              aria-label={`Assigned to ${lead.assignedTo?.firstName} ${lead.assignedTo?.lastName}`}
+            >
+              {assigneeInitials}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function LeadsPage() {
   const { currentRole } = useAppContext();
@@ -141,8 +278,10 @@ export default function LeadsPage() {
       .catch(() => {});
   }, [currentRole]);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => { e.dataTransfer.setData('text/plain', id); };
-  const handleDragEnd = () => setIsDraggedOver({});
+  // useCallback gives these stable identities so the memoized LeadCard doesn't
+  // re-render every time the parent re-renders.
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => { e.dataTransfer.setData('text/plain', id); }, []);
+  const handleDragEnd = useCallback(() => setIsDraggedOver({}), []);
   const handleDragOver = (e: React.DragEvent, colId: string) => {
     e.preventDefault();
     setIsDraggedOver((prev) => ({ ...prev, [colId]: true }));
@@ -226,9 +365,6 @@ export default function LeadsPage() {
     }
   };
 
-  const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
-  const STAGE_RANK: Record<string, number> = { new: 0, sequence_active: 1, replied: 2, meeting_booked: 3, won: 4, lost: 5 };
-
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -238,17 +374,19 @@ export default function LeadsPage() {
     }
   };
 
-  const sortedLeads = [...leads].sort((a, b) => {
-    if (!sortField) return 0;
-    let cmp = 0;
-    if (sortField === 'name') cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
-    else if (sortField === 'company') cmp = (a.company ?? '').localeCompare(b.company ?? '');
-    else if (sortField === 'stage') cmp = (STAGE_RANK[a.stage] ?? 99) - (STAGE_RANK[b.stage] ?? 99);
-    else if (sortField === 'priority') cmp = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
-    else if (sortField === 'assignedTo') cmp = (`${a.assignedTo?.firstName ?? ''}${a.assignedTo?.lastName ?? ''}`).localeCompare(`${b.assignedTo?.firstName ?? ''}${b.assignedTo?.lastName ?? ''}`);
-    else if (sortField === 'lastContacted') cmp = (a.lastContactedAt ? new Date(a.lastContactedAt).getTime() : 0) - (b.lastContactedAt ? new Date(b.lastContactedAt).getTime() : 0);
-    return sortDir === 'asc' ? cmp : -cmp;
-  });
+  const sortedLeads = useMemo(() => {
+    return [...leads].sort((a, b) => {
+      if (!sortField) return 0;
+      let cmp = 0;
+      if (sortField === 'name') cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+      else if (sortField === 'company') cmp = (a.company ?? '').localeCompare(b.company ?? '');
+      else if (sortField === 'stage') cmp = (STAGE_RANK[a.stage] ?? 99) - (STAGE_RANK[b.stage] ?? 99);
+      else if (sortField === 'priority') cmp = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+      else if (sortField === 'assignedTo') cmp = (`${a.assignedTo?.firstName ?? ''}${a.assignedTo?.lastName ?? ''}`).localeCompare(`${b.assignedTo?.firstName ?? ''}${b.assignedTo?.lastName ?? ''}`);
+      else if (sortField === 'lastContacted') cmp = (a.lastContactedAt ? new Date(a.lastContactedAt).getTime() : 0) - (b.lastContactedAt ? new Date(b.lastContactedAt).getTime() : 0);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [leads, sortField, sortDir]);
 
   // Render helper, not a component — defining components during render trips
   // the react-hooks/static-components rule and remounts the node every render.
@@ -266,14 +404,24 @@ export default function LeadsPage() {
     </th>
   );
 
-  const columns: { id: Lead['stage']; label: string; color: string }[] = [
-    { id: 'new', label: 'New', color: 'border-t-2 border-gray-400 bg-gray-500/5' },
-    { id: 'sequence_active', label: 'Sequence Active', color: 'border-t-2 border-blue-500 bg-blue-500/5' },
-    { id: 'replied', label: 'Replied', color: 'border-t-2 border-brand-orange bg-brand-orange/5' },
-    { id: 'meeting_booked', label: 'Meeting Booked', color: 'border-t-2 border-emerald-500 bg-emerald-500/5' },
-    { id: 'won', label: 'Won', color: 'border-t-2 border-green-600 bg-green-600/5' },
-    { id: 'lost', label: 'Lost', color: 'border-t-2 border-brand-red bg-brand-red/5' },
+  const columns: { id: Lead['stage']; label: string; color: string; dotColor: string }[] = [
+    { id: 'new', label: 'New', color: 'border border-card-border bg-gray-500/5', dotColor: 'bg-gray-400' },
+    { id: 'sequence_active', label: 'Seq. Active', color: 'border border-card-border bg-blue-500/5', dotColor: 'bg-blue-500' },
+    { id: 'replied', label: 'Replied', color: 'border border-card-border bg-brand-orange/5', dotColor: 'bg-brand-orange' },
+    { id: 'meeting_booked', label: 'Meeting', color: 'border border-card-border bg-emerald-500/5', dotColor: 'bg-emerald-500' },
+    { id: 'won', label: 'Won', color: 'border border-card-border bg-green-600/5', dotColor: 'bg-green-600' },
+    { id: 'lost', label: 'Lost', color: 'border border-card-border bg-brand-red/5', dotColor: 'bg-brand-red' },
   ];
+
+  // Bucket leads by stage once per leads-change instead of filtering the full
+  // array inside every kanban column on every render.
+  const leadsByStage = useMemo(() => {
+    const map: Record<string, Lead[]> = { new: [], sequence_active: [], replied: [], meeting_booked: [], won: [], lost: [] };
+    for (const l of leads) {
+      (map[l.stage] ??= []).push(l);
+    }
+    return map;
+  }, [leads]);
 
   const stageBadgeClass = (stage: Lead['stage']) => {
     switch (stage) {
@@ -325,28 +473,28 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <div className="bg-card-bg border border-card-border p-1 rounded-xl flex items-center gap-1 shadow-sm">
+          <div className="flex rounded-lg border border-card-border overflow-hidden shadow-sm">
             <button
               onClick={() => handleSetViewMode('kanban')}
               aria-pressed={viewMode === 'kanban'}
               aria-label="Kanban view"
-              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors focus-ring ${
-                viewMode === 'kanban' ? 'bg-brand-red text-white' : 'text-text-secondary hover:text-text-primary'
+              title="Kanban view"
+              className={`p-2 transition-colors focus-ring ${
+                viewMode === 'kanban' ? 'bg-brand-red text-white' : 'bg-card-bg text-text-muted hover:text-text-primary'
               }`}
             >
-              <KanbanSquare className="w-4 h-4" aria-hidden="true" />
-              <span>Kanban</span>
+              <KanbanSquare className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
             <button
               onClick={() => handleSetViewMode('table')}
               aria-pressed={viewMode === 'table'}
               aria-label="Table view"
-              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors focus-ring ${
-                viewMode === 'table' ? 'bg-brand-red text-white' : 'text-text-secondary hover:text-text-primary'
+              title="Table view"
+              className={`p-2 transition-colors focus-ring border-l border-card-border ${
+                viewMode === 'table' ? 'bg-brand-red text-white' : 'bg-card-bg text-text-muted hover:text-text-primary'
               }`}
             >
-              <TableProperties className="w-4 h-4" aria-hidden="true" />
-              <span>Table</span>
+              <TableProperties className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
           <button
@@ -490,7 +638,7 @@ export default function LeadsPage() {
       {viewMode === 'kanban' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 flex-1 items-stretch">
           {columns.map((col) => {
-            const colLeads = leads.filter((l) => l.stage === col.id);
+            const colLeads = leadsByStage[col.id] ?? [];
             const isHovered = isDraggedOver[col.id];
 
             return (
@@ -506,9 +654,12 @@ export default function LeadsPage() {
                   isHovered ? 'border-brand-red border-dashed bg-brand-red/[0.03]' : col.color
                 }`}
               >
-                <div className="flex items-center justify-between pb-3 border-b border-card-border/50 mb-3">
-                  <span className="font-display font-extrabold text-xs text-text-primary">{col.label}</span>
-                  <span className="bg-card-border/50 px-1.5 py-0.5 rounded text-xs font-mono font-bold text-text-muted">
+                <div className="flex items-center justify-between pb-2.5 border-b border-card-border/50 mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`stage-dot ${col.dotColor}`} aria-hidden="true" />
+                    <span className="font-display font-bold text-xs text-text-primary">{col.label}</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-text-muted">
                     {colLeads.length}
                   </span>
                 </div>
@@ -519,51 +670,15 @@ export default function LeadsPage() {
                       Empty stage
                     </div>
                   ) : (
-                    colLeads.map((lead) => {
-                      const daysOverdue = lead.nextTaskDue
-                        ? Math.floor((Date.now() - new Date(lead.nextTaskDue).getTime()) / 86400000)
-                        : 0;
-                      // Server flag: a sequence step task overdue 3+ days (SKILL.md §3)
-                      const atRisk = lead.atRisk ?? false;
-                      return (
-                        <div
-                          key={lead.id}
-                          onClick={() => setSelectedLeadId(lead.id)}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, lead.id)}
-                          onDragEnd={handleDragEnd}
-                          className={`p-3 glass-card rounded-xl cursor-grab active:cursor-grabbing hover:border-brand-red/50 hover-lift transition-all duration-200 flex flex-col gap-2 relative select-none group ${
-                            lead.priority === 'hot' ? 'glow-hot' : ''
-                          } ${atRisk ? 'border-amber-500/40' : ''}`}
-                        >
-                          {atRisk && (
-                            <span
-                              className="absolute top-2 right-2 text-xs font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded"
-                              title={`Sequence task overdue ${Math.max(daysOverdue, 3)} days`}
-                            >
-                              ⚠ {Math.max(daysOverdue, 3)}d
-                            </span>
-                          )}
-                          <div>
-                            <p className="font-display font-extrabold text-sm text-text-primary pr-10 leading-snug">
-                              {lead.firstName} {lead.lastName}
-                            </p>
-                            <p className="text-xs text-text-muted truncate mt-0.5">{lead.company}</p>
-                          </div>
-                          <div className="flex items-center justify-between pt-1.5 border-t border-card-border/30">
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${priorityBadgeClass(lead.priority)}`}>
-                              {lead.priority}
-                            </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.id); }}
-                              className="opacity-0 group-hover:opacity-100 text-xs font-semibold text-text-muted hover:text-brand-red transition-all px-2 py-0.5 rounded border border-card-border hover:border-brand-red/30"
-                            >
-                              View
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
+                    colLeads.map((lead) => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        onOpen={setSelectedLeadId}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    ))
                   )}
                 </div>
               </div>
@@ -721,13 +836,15 @@ export default function LeadsPage() {
         </div>
       )}
 
-      <LeadDetailPanel
-        leadId={selectedLeadId}
-        onClose={() => {
-          setSelectedLeadId(null);
-          fetchLeads();
-        }}
-      />
+      {selectedLeadId && (
+        <LeadDetailPanel
+          leadId={selectedLeadId}
+          onClose={() => {
+            setSelectedLeadId(null);
+            fetchLeads();
+          }}
+        />
+      )}
 
       {showNewLeadModal && (
         <NewLeadModal

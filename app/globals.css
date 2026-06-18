@@ -73,9 +73,9 @@ body[data-theme="dark"] {
 body[data-theme="light"] {
   --background: #FFFFFF;
   --foreground: #111827;
-  --card-bg: #F9FAFB;
+  --card-bg: #FFFFFF;
   --card-border: #E5E7EB;
-  --sidebar-bg: #F3F4F6;
+  --sidebar-bg: #FFFFFF;
   --sidebar-border: #E5E7EB;
   --sidebar-text: #111827;
   --sidebar-text-muted: #6B7280;
@@ -85,8 +85,8 @@ body[data-theme="light"] {
   --topbar-bg: #FFFFFF;
   --topbar-border: #E5E7EB;
   --header-glow: rgba(0, 0, 0, 0.01);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
 }
 
 /* ─── TAILWIND 4 EXTENSIONS ─── */
@@ -230,9 +230,29 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-backdrop-filter: blur(14px) saturate(180%);
   border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
 }
+/* Light mode: solid white cards, no blur — much faster GPU rendering */
 body[data-theme="light"] .glass-card {
-  background: color-mix(in srgb, #FFFFFF 80%, transparent);
-  border-color: rgba(0,0,0,0.07);
+  background: #FFFFFF;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #E5E7EB;
+}
+/* Light mode: no aurora animation — clean static background */
+body[data-theme="light"] .aurora-bg {
+  background: #F8F9FA;
+  animation: none;
+}
+/* Light mode: replace pulsing glow with a static left accent bar */
+body[data-theme="light"] .glow-hot {
+  animation: none;
+  border-color: rgba(212, 43, 30, 0.4) !important;
+  box-shadow: inset 3px 0 0 var(--brand-red);
+}
+/* Light mode: glass-sidebar becomes solid white */
+body[data-theme="light"] .glass-sidebar {
+  background: var(--sidebar-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 body[data-theme="dark"] .glass-card {
   background: color-mix(in srgb, var(--card-bg) 65%, transparent);
@@ -357,4 +377,46 @@ body[data-theme="dark"] .glass-card {
 }
 .focus-ring:focus-visible {
   outline-color: var(--brand-red);
+}
+
+/* ─── KANBAN CARD HELPERS ─── */
+/* Small colored dot for stage column headers */
+.stage-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* XS SDR avatar circle in lead cards */
+.avatar-xs {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── SIDEBAR TRANSITION ─── */
+.sidebar-transition {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── TOAST COUNTDOWN BAR ─── */
+/* Compositor-driven width countdown — replaces a 30ms JS interval per toast */
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.toast-progress {
+  width: 100%;
+  transform-origin: left;
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }

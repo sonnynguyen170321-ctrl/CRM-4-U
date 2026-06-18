@@ -14,9 +14,12 @@ import {
   FileText,
   MoreHorizontal,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
-import LeadDetailPanel from '@/components/LeadDetailPanel';
+
+// Slide-over loads on demand — its chunk fetches the first time a task's lead is opened.
+const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 
 interface TaskLead {
   id: string;
@@ -652,7 +655,9 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+      {selectedLeadId && (
+        <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+      )}
 
       {/* Meeting Booked follow-up prompt */}
       {meetingPrompt && (

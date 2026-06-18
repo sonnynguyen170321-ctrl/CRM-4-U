@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { 
   CheckCircle, 
   XCircle, 
@@ -18,21 +18,11 @@ interface ToastProps {
 }
 
 export default function Toast({ message, type, onClose, duration = 3000 }: ToastProps) {
-  const [progress, setProgress] = useState(100);
-
+  // A single timer closes the toast; the countdown bar animates purely in CSS
+  // (compositor-driven scaleX) instead of ~100 React re-renders per toast.
   useEffect(() => {
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
-      setProgress(remaining);
-      if (remaining === 0) {
-        clearInterval(interval);
-        onClose();
-      }
-    }, 30);
-
-    return () => clearInterval(interval);
+    const id = setTimeout(onClose, duration);
+    return () => clearTimeout(id);
   }, [duration, onClose]);
 
   const typeConfig = {
@@ -81,11 +71,11 @@ export default function Toast({ message, type, onClose, duration = 3000 }: Toast
         </button>
       </div>
       
-      {/* Auto dismiss countdown progress bar */}
+      {/* Auto dismiss countdown progress bar — CSS animated, no per-frame renders */}
       <div className="w-full bg-card-border h-0.5 mt-auto">
-        <div 
-          className={`h-full rounded-r ${config.barColor}`}
-          style={{ width: `${progress}%` }}
+        <div
+          className={`h-full rounded-r toast-progress ${config.barColor}`}
+          style={{ animationDuration: `${duration}ms` }}
         />
       </div>
     </div>

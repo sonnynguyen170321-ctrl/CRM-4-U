@@ -14,10 +14,13 @@ import {
   Flame,
   Minus,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
-import LeadDetailPanel from '@/components/LeadDetailPanel';
-import CSVImportModal from '@/components/CSVImportModal';
+
+// On-demand chunks — the slide-over and import modal render only on interaction.
+const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
+const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
 
 interface Lead {
   id: string;

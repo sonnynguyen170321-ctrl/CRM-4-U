@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -61,6 +61,8 @@ export default function TemplatesPage() {
   const [activePane, setActivePane] = useState<'edit' | 'preview'>('edit');
   const [filterChannel, setFilterChannel] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
   const [abVariants, setAbVariants] = useState<AbTestVariant[]>([]);
   const [abOpen, setAbOpen] = useState(false);
@@ -77,6 +79,12 @@ export default function TemplatesPage() {
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(searchQuery), 200);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
 
   const loadAbVariants = useCallback(async (templateId: string) => {
     const res = await fetch(`/api/templates/${templateId}/ab-test`);
@@ -210,9 +218,9 @@ export default function TemplatesPage() {
   const filteredTemplates = templates.filter((t) => {
     const matchesChannel = filterChannel === 'all' || t.channel === filterChannel;
     const matchesSearch =
-      !searchQuery ||
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.body.toLowerCase().includes(searchQuery.toLowerCase());
+      !debouncedSearch ||
+      t.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      t.body.toLowerCase().includes(debouncedSearch.toLowerCase());
     return matchesChannel && matchesSearch;
   });
 

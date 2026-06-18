@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
-import LeadDetailPanel from '@/components/LeadDetailPanel';
+import dynamic from 'next/dynamic';
 
 // Modular subcomponents
 import CampaignOverview from '@/components/team/CampaignOverview';
-import CampaignDetail from '@/components/team/CampaignDetail';
 import TeamLeaderboard from '@/components/team/TeamLeaderboard';
 import OverdueAlerts from '@/components/team/OverdueAlerts';
+
+// Loaded on demand: the slide-over and the recharts-heavy campaign drill-down
+// (~50KB) only render on interaction, so their chunks stay out of the initial bundle.
+const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
+const CampaignDetail = dynamic(() => import('@/components/team/CampaignDetail'), { ssr: false });
 
 interface User {
   id: string;
@@ -346,21 +350,18 @@ ${detail.sequences && detail.sequences.length > 0 ? `
   };
 
   // Client-side filtering of campaigns list in Overview based on manager dropdown choices
-  const filteredCampaigns = campaigns.filter((c) => {
-    if (filterSdr && !c.campaignSdrs?.some((s: any) => s.userId === filterSdr)) {
-      return false;
-    }
-    if (filterManager) {
-      // Find SDRs that report to the selected Floor Manager or Team Lead
-      const podRepIds = users.filter((u) => u.managerId === filterManager).map((u) => u.id);
-      // Include the manager themselves in case they work directly, plus their reports
-      const allowedIds = [filterManager, ...podRepIds];
-      if (!c.campaignSdrs?.some((s: any) => allowedIds.includes(s.userId))) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const filteredCampaigns = useMemo(() => {
+    const podRepIds = filterManager
+      ? users.filter((u) => u.managerId === filterManager).map((u: any) => u.id)
+      : [];
+    const allowedIds = filterManager ? [filterManager, ...podRepIds] : null;
+
+    return campaigns.filter((c) => {
+      if (filterSdr && !c.campaignSdrs?.some((s: any) => s.userId === filterSdr)) return false;
+      if (allowedIds && !c.campaignSdrs?.some((s: any) => allowedIds.includes(s.userId))) return false;
+      return true;
+    });
+  }, [campaigns, filterSdr, filterManager, users]);
 
   if (isSessionLoading || !isManager) {
     return null;
