@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldAlert } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import LeadDetailPanel from '@/components/LeadDetailPanel';
@@ -21,8 +21,15 @@ interface User {
 }
 
 export default function TeamViewPage() {
-  const { currentRole, isManager } = useAppContext();
+  const { currentRole, isManager, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isSessionLoading && !isManager) {
+      router.replace('/');
+    }
+  }, [isSessionLoading, isManager, router]);
 
   // Navigation states
   const [activeTab, setActiveTab] = useState<'campaigns' | 'performance'>('campaigns');
@@ -355,19 +362,8 @@ ${detail.sequences && detail.sequences.length > 0 ? `
     return true;
   });
 
-  // Guard: Restricted to managers (or leadgen managers with reports)
-  if (!isManager) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-md mx-auto my-12 animate-in fade-in duration-300">
-        <div className="w-16 h-16 bg-brand-red/10 border border-brand-red/25 rounded-2xl flex items-center justify-center text-brand-red">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="font-display font-extrabold text-lg text-text-primary">Manager Access Only</h2>
-        <p className="text-xs text-text-secondary leading-relaxed">
-          The Team View dashboard is restricted to Directors, Floor Managers, and Team Leads.
-        </p>
-      </div>
-    );
+  if (isSessionLoading || !isManager) {
+    return null;
   }
 
   const isSdr = currentRole === 'sdr';
