@@ -28,48 +28,8 @@
   --font-mono: 'Geist Mono', SFMono-Regular, Consolas, monospace;
 }
 
-/* 1. MIXED THEME (Default) - Dark sidebar, light content area */
-body[data-theme="mixed"],
-body:not([data-theme]) {
-  --background: #F8F9FA;
-  --foreground: #111111;
-  --card-bg: #FFFFFF;
-  --card-border: #E5E7EB;
-  --sidebar-bg: #151C2C;
-  --sidebar-border: #1F2A40;
-  --sidebar-text: #E5E7EB;
-  --sidebar-text-muted: #8E9196;
-  --text-primary: #111111;
-  --text-secondary: #4B5563;
-  --text-muted: #9CA3AF;
-  --topbar-bg: #FFFFFF;
-  --topbar-border: #E5E7EB;
-  --header-glow: rgba(0, 0, 0, 0.02);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-}
-
-/* 2. FULL DARK MODE - Dark throughout */
-body[data-theme="dark"] {
-  --background: #060606;
-  --foreground: #F3F4F6;
-  --card-bg: #0D0D0D;
-  --card-border: #1F2937;
-  --sidebar-bg: #151C2C;
-  --sidebar-border: #1F2A40;
-  --sidebar-text: #F3F4F6;
-  --sidebar-text-muted: #6B7280;
-  --text-primary: #F3F4F6;
-  --text-secondary: #9CA3AF;
-  --text-muted: #4B5563;
-  --topbar-bg: #0D0D0D;
-  --topbar-border: #1F2937;
-  --header-glow: rgba(212, 43, 30, 0.03);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.7);
-}
-
-/* 3. FULL LIGHT MODE - Light throughout */
+/* LIGHT THEME — the only theme. `data-theme="light"` is set statically on <body>
+   so these tokens (and the matching component overrides below) always apply. */
 body[data-theme="light"] {
   --background: #FFFFFF;
   --foreground: #111827;
@@ -254,10 +214,6 @@ body[data-theme="light"] .glass-sidebar {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-body[data-theme="dark"] .glass-card {
-  background: color-mix(in srgb, var(--card-bg) 65%, transparent);
-}
-
 .glass-topbar {
   background: color-mix(in srgb, var(--topbar-bg) 72%, transparent);
   backdrop-filter: blur(20px) saturate(200%);

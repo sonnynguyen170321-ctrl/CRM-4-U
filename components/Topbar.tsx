@@ -6,9 +6,6 @@ import {
   Search,
   Bell,
   Plus,
-  Sun,
-  Moon,
-  LayoutGrid,
   Check,
   UserCheck,
   ChevronDown,
@@ -17,7 +14,6 @@ import {
   LogOut,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
-import { useTheme, Theme } from '@/context/ThemeContext';
 import { useAppContext } from '@/context/AppContext';
 
 interface Notification {
@@ -48,7 +44,6 @@ interface TopbarProps {
 }
 
 export default function Topbar({ currentRole, onRoleChange, onNewAction }: TopbarProps) {
-  const { theme, setTheme } = useTheme();
   const { currentUser } = useAppContext();
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -510,24 +505,6 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                       <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
                     </span>
                     {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
-                  </button>
-                ))}
-                <div className="my-1 border-t border-card-border" />
-                <div className="px-3 py-1 text-xs font-mono uppercase tracking-widest text-text-muted">Appearance</div>
-                {(['mixed', 'dark', 'light'] as Theme[]).map((t) => (
-                  <button
-                    key={t}
-                    role="menuitem"
-                    onClick={() => { setTheme(t); setPersonaOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
-                      theme === t ? 'text-brand-red font-semibold bg-brand-red/5' : 'text-text-primary hover:bg-background'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {t === 'light' ? <Sun className="w-3.5 h-3.5" /> : t === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
-                      <span className="capitalize">{t} theme</span>
-                    </span>
-                    {theme === t && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
                   </button>
                 ))}
                 <div className="my-1 border-t border-card-border" />

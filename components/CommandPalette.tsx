@@ -2,16 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Search, 
-  Terminal, 
-  Users, 
-  Sparkles, 
+import {
+  Search,
+  Users,
+  Sparkles,
   ChevronRight,
   Flame,
   LayoutDashboard
 } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
 import { useAppContext } from '@/context/AppContext';
 interface Lead { id: string; firstName: string; lastName: string; company: string; }
 import LeadDetailPanel from './LeadDetailPanel';
@@ -27,7 +25,6 @@ interface CommandItem {
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { setTheme } = useTheme();
   const { setRole } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -78,9 +75,6 @@ export default function CommandPalette() {
     { id: 'go_dash', name: 'Go to Tasks Dashboard', category: 'Navigation', shortcut: 'G D', icon: <LayoutDashboard className="w-4 h-4 text-brand-red" />, action: () => router.push('/') },
     { id: 'go_leads', name: 'Go to Leads Pipeline', category: 'Navigation', shortcut: 'G L', icon: <Users className="w-4 h-4 text-blue-500" />, action: () => router.push('/leads') },
     { id: 'go_seq', name: 'Go to Drip Sequences', category: 'Navigation', shortcut: 'G S', icon: <Sparkles className="w-4 h-4 text-brand-orange" />, action: () => router.push('/sequences') },
-    { id: 'theme_mixed', name: 'Switch theme to Mixed', category: 'Preferences', icon: <Terminal className="w-4 h-4 text-brand-red" />, action: () => setTheme('mixed') },
-    { id: 'theme_dark', name: 'Switch theme to Dark Mode', category: 'Preferences', icon: <Terminal className="w-4 h-4 text-brand-gold" />, action: () => setTheme('dark') },
-    { id: 'theme_light', name: 'Switch theme to Light Mode', category: 'Preferences', icon: <Terminal className="w-4 h-4 text-brand-orange" />, action: () => setTheme('light') },
     { id: 'role_dir', name: 'Simulate Director Profile (Unlock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-red" />, action: () => setRole('director') },
     { id: 'role_sdr', name: 'Simulate SDR Profile (Lock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-orange" />, action: () => setRole('sdr') },
   ];
