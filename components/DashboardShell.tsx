@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
@@ -10,9 +10,30 @@ import NewReminderModal from './NewReminderModal';
 import NewCampaignModal from './NewCampaignModal';
 import { useAppContext } from '@/context/AppContext';
 
+// Keep the Neon DB warm while the app is actively in use. Pinging every 4 minutes
+// stays under the free-tier 5-minute auto-suspend window, so the first query after
+// idle doesn't pay a cold-start penalty. Only fires while the tab is visible, so a
+// backgrounded tab doesn't burn compute hours overnight — the DB suspends when the
+// team stops working and wakes on the first load the next morning.
+const HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
+
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const { currentRole, setRole, setActiveNewModal, activeNewModal } = useAppContext();
   const pathname = usePathname();
+
+  useEffect(() => {
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetch('/api/health', { cache: 'no-store' }).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, HEARTBEAT_INTERVAL_MS);
+    document.addEventListener('visibilitychange', ping);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', ping);
+    };
+  }, []);
 
   if (pathname === '/login') {
     return <>{children}</>;
@@ -22,7 +43,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     <div className="min-h-screen flex bg-bg-main text-text-main transition-colors duration-200">
       <Sidebar userRole={currentRole} />
 
-      <div className="flex-1 flex flex-col min-w-0 pl-14 xl:pl-52">
+      <div className="flex-1 flex flex-col min-w-0" style={{ paddingLeft: 'var(--sidebar-w, 56px)' }}>
         <Topbar
           currentRole={currentRole}
           onRoleChange={setRole}

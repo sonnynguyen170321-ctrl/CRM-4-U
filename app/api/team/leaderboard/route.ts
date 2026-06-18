@@ -45,30 +45,40 @@ export async function GET(req: NextRequest) {
     targetIds = visibleIds ? podIds.filter((id) => visibleIds.includes(id)) : podIds;
   }
 
-  // Fetch activities in date range for target users
-  const activities = await prisma.activity.findMany({
+  // Aggregate activity counts in the DB (uses the [userId, type, createdAt] index)
+  // instead of pulling thousands of rows and bucketing them per user in JS.
+  const counts = await prisma.activity.groupBy({
+    by: ['userId', 'type'],
     where: {
       createdAt: { gte: rangeStart },
-      userId: { in: targetIds }
+      userId: { in: targetIds },
     },
-    select: {
-      userId: true,
-      type: true
-    },
-    take: 2000,
+    _count: { _all: true },
   });
+
+  // userId -> (activityType -> count)
+  const countsByUser = new Map<string, Map<string, number>>();
+  for (const row of counts) {
+    let typeMap = countsByUser.get(row.userId);
+    if (!typeMap) {
+      typeMap = new Map<string, number>();
+      countsByUser.set(row.userId, typeMap);
+    }
+    typeMap.set(row.type, row._count._all);
+  }
 
   const scopedUsers = allUsers.filter((u) => targetIds.includes(u.id) && ['sdr', 'team_lead', 'floor_manager', 'leadgen'].includes(u.role));
 
   const leaderboard = scopedUsers.map((u) => {
-    const userActs = activities.filter((a) => a.userId === u.id);
-    
-    const calls = userActs.filter((a) => a.type === 'call_logged' || a.type === 'call_made').length;
-    const emails = userActs.filter((a) => a.type === 'email_sent').length;
-    const linkedin = userActs.filter((a) => a.type === 'linkedin_touch' || a.type === 'linkedin_sent').length;
-    const whatsapp = userActs.filter((a) => a.type === 'whatsapp_message' || a.type === 'whatsapp_sent').length;
-    const booked = userActs.filter((a) => a.type === 'meeting_booked').length;
-    
+    const t = countsByUser.get(u.id);
+    const c = (type: string) => t?.get(type) ?? 0;
+
+    const calls = c('call_logged') + c('call_made');
+    const emails = c('email_sent');
+    const linkedin = c('linkedin_touch') + c('linkedin_sent');
+    const whatsapp = c('whatsapp_message') + c('whatsapp_sent');
+    const booked = c('meeting_booked');
+
     const total = calls + emails + linkedin + whatsapp + booked;
 
     return {

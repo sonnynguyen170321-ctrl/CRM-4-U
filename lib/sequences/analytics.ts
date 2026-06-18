@@ -31,29 +31,30 @@ export async function getSequenceAnalytics(sequenceId: string): Promise<Sequence
   });
   if (!sequence) throw new Error('Sequence not found');
 
-  const activeEnrolled = await prisma.lead.count({
-    where: { sequenceId, sequenceStatus: 'active' },
-  });
-
-  const completedActivities = await prisma.activity.count({
-    where: { sequenceId, type: 'sequence_completed' },
-  });
-
-  const sends = await prisma.activity.findMany({
-    where: { type: 'email_sent', metadata: { path: ['sequenceId'], equals: sequenceId } },
-    select: { createdAt: true },
-  });
+  // The remaining reads are independent of each other — run them in parallel.
+  const [activeEnrolled, completedActivities, sends, activities] = await Promise.all([
+    prisma.lead.count({
+      where: { sequenceId, sequenceStatus: 'active' },
+    }),
+    prisma.activity.count({
+      where: { sequenceId, type: 'sequence_completed' },
+    }),
+    prisma.activity.findMany({
+      where: { type: 'email_sent', metadata: { path: ['sequenceId'], equals: sequenceId } },
+      select: { createdAt: true },
+    }),
+    prisma.activity.findMany({
+      where: {
+        leadId: { not: null },
+        type: { in: ['email_sent', 'stage_changed', 'sequence_unenrolled'] },
+        metadata: { path: ['sequenceId'], equals: sequenceId },
+      },
+      select: { type: true, metadata: true, createdAt: true },
+      take: 10000,
+    }),
+  ]);
 
   const totalSends = sends.length;
-
-  const activities = await prisma.activity.findMany({
-    where: {
-      leadId: { not: null },
-      type: { in: ['email_sent', 'stage_changed', 'sequence_unenrolled'] },
-      metadata: { path: ['sequenceId'], equals: sequenceId },
-    },
-    select: { type: true, metadata: true, createdAt: true },
-  });
 
   const replies = activities.filter(a => a.type === 'stage_changed' && (a.metadata as any)?.to === 'replied').length;
   const bounces = activities.filter(a => a.type === 'sequence_unenrolled' && (a.metadata as any)?.reason === 'bounced').length;
@@ -68,24 +69,22 @@ export async function getSequenceAnalytics(sequenceId: string): Promise<Sequence
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const topTemplates: SequenceAnalytics['topTemplates'] = [];
-  const stepBreakdown: SequenceAnalytics['stepBreakdown'] = [];
 
-  for (const step of sequence.steps) {
-    const sentCount = await prisma.activity.count({
-      where: {
-        type: 'email_sent',
-        AND: [
-          { metadata: { path: ['sequenceStep'], equals: step.order } },
-        ],
-      },
-    });
-    stepBreakdown.push({
-      step: step.order,
-      channel: step.channel,
-      sent: sentCount,
-      replies: 0,
-    });
+  // Step send counts come from the already-fetched, sequence-scoped `activities`
+  // array — no per-step queries, and correctly scoped to THIS sequence (the old
+  // per-step count had no sequenceId filter and counted across all sequences).
+  const sentByStep = new Map<number, number>();
+  for (const a of activities) {
+    if (a.type !== 'email_sent') continue;
+    const step = (a.metadata as any)?.sequenceStep;
+    if (typeof step === 'number') sentByStep.set(step, (sentByStep.get(step) ?? 0) + 1);
   }
+  const stepBreakdown: SequenceAnalytics['stepBreakdown'] = sequence.steps.map((step) => ({
+    step: step.order,
+    channel: step.channel,
+    sent: sentByStep.get(step.order) ?? 0,
+    replies: 0,
+  }));
 
   return {
     totalEnrolled: sequence._count.leads,

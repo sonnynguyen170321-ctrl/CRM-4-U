@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
         _count: { select: { leads: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return NextResponse.json(sequences, {

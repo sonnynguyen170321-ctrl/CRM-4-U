@@ -80,7 +80,8 @@ export async function GET(req: NextRequest) {
             campaignId: true
           }
         }
-      }
+      },
+      take: 5000,
     });
 
     const campaignMetrics = campaigns.map((campaign) => {

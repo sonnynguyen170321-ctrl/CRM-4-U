@@ -1,11 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import { neonConfig } from '@neondatabase/serverless';
+import { PrismaNeon } from '@prisma/adapter-neon';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
 export { tenantStorage };
 
-// PrismaNeonHttp uses Neon's HTTP transport instead of a persistent TCP connection.
-// This eliminates the TCP handshake + PG auth overhead on every Vercel cold invocation,
-// making serverless DB calls noticeably faster without any WebSocket setup.
+// Route non-transactional pool queries over HTTP — no TCP handshake on cold start.
+// PrismaNeon (Pool-based) is used instead of PrismaNeonHTTP because the RLS middleware
+// relies on $transaction([set_config, set_config, query]), which HTTP-only mode cannot support.
+neonConfig.poolQueryViaFetch = true;
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
@@ -24,8 +27,10 @@ async function getTenantIdFromSession(): Promise<string | null> {
 }
 
 function createPrismaClient() {
-  // Switch to the native Prisma TCP engine to support interactive transactions for Row-Level Security
+  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+
   const client = new PrismaClient({
+    adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 

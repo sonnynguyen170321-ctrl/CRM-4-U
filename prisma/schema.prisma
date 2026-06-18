@@ -236,6 +236,8 @@ model Lead {
   @@index([campaignId])
   @@index([priority])
   @@index([tenantId])
+  @@index([campaignId, stage])
+  @@index([campaignId, assignedToId])
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -311,6 +313,7 @@ model Task {
   @@index([dueDate])
   @@index([status])
   @@index([tenantId])
+  @@index([userId, status, dueDate])
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -414,6 +417,7 @@ model Activity {
   @@index([type])
   @@index([createdAt])
   @@index([tenantId])
+  @@index([userId, type, createdAt])
 }
 
 // ─── Email Accounts ──────────────────────────────────────────────────────────

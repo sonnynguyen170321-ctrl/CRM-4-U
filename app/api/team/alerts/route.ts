@@ -81,7 +81,8 @@ export async function GET(req: NextRequest) {
     },
     orderBy: {
       dueDate: 'asc'
-    }
+    },
+    take: 50,
   });
 
   // Calculate days overdue for each task
