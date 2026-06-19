@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { prisma, tenantStorage } from '@/lib/prisma';
 
-describe('PostgreSQL Row-Level Security (RLS)', () => {
+// Integration test: needs a live, seeded database (DATABASE_URL). CI has no DB
+// configured, so skip there; it still runs locally and anywhere a DB is present.
+describe.skipIf(!process.env.DATABASE_URL)('PostgreSQL Row-Level Security (RLS)', () => {
   const tenantAId = 'test-tenant-a';
   const tenantBId = 'test-tenant-b';
 
