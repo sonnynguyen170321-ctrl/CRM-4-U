@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, getVisibleUserIds, canAccessUser } from '@/lib/auth';
+import { requireAuth, getVisibleUserIds, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createTaskSchema } from '@/lib/validation/schemas';
@@ -39,6 +39,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     userScope = { userId: scopeUserId };
+  }
+
+  // When viewing a single lead's tasks (lead slide-over), a TL/FM who can access
+  // that lead by account sees ALL its tasks — even those owned by an out-of-pod
+  // SDR — so they can work the account. Mirrors the lead detail access check.
+  if (leadId && visibleIds) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { assignedToId: true, campaignId: true },
+    });
+    if (lead && (await canAccessLead(user, lead))) {
+      userScope = {};
+    }
   }
 
   try {
@@ -92,9 +105,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const lead = await prisma.lead.findUnique({ where: { id: body.leadId }, select: { assignedToId: true } });
+  const lead = await prisma.lead.findUnique({ where: { id: body.leadId }, select: { assignedToId: true, campaignId: true } });
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-  if (!(await canAccessUser(user, lead.assignedToId))) {
+  if (!(await canAccessLead(user, lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

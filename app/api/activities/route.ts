@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, getVisibleUserIds, canAccessUser } from '@/lib/auth';
+import { requireAuth, getVisibleUserIds, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createActivitySchema } from '@/lib/validation/schemas';
@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
   const visibleIds = await getVisibleUserIds(user);
 
   if (leadId) {
-    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { assignedToId: true } });
+    const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { assignedToId: true, campaignId: true } });
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    if (!(await canAccessUser(user, lead.assignedToId))) {
+    if (!(await canAccessLead(user, lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   }

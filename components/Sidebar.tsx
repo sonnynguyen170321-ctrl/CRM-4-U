@@ -28,7 +28,7 @@ const W_COLLAPSED = '56px';
 
 export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
   const pathname = usePathname();
-  const { currentUser, isManager } = useAppContext();
+  const { currentUser, isManager, isLeadgenManager } = useAppContext();
 
   const [expanded, setExpanded] = useState(false);
 
@@ -46,17 +46,22 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     document.documentElement.style.setProperty('--sidebar-w', next ? W_EXPANDED : W_COLLAPSED);
   };
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Leads', href: '/leads', icon: Users },
-    { name: 'Sequences', href: '/sequences', icon: Repeat },
-    { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },
-    { name: 'Templates', href: '/templates', icon: FileText },
-    ...(userRole === 'leadgen' ? [{ name: 'Leadgen', href: '/leadgen', icon: Target }] : []),
-    ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
-    ...(isManager ? [{ name: 'Automation', href: '/automation', icon: Cpu }] : []),
-    { name: 'Settings', href: '/settings', icon: Settings },
-  ];
+  // Leadgen gets its own focused environment; everyone else gets the standard shell.
+  const navItems = userRole === 'leadgen'
+    ? [
+        { name: 'Leadgen', href: '/leadgen', icon: Target },
+        { name: 'Settings', href: '/settings', icon: Settings },
+      ]
+    : [
+        { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { name: 'Leads', href: '/leads', icon: Users },
+        { name: 'Sequences', href: '/sequences', icon: Repeat },
+        { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },
+        { name: 'Templates', href: '/templates', icon: FileText },
+        ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
+        ...(isManager ? [{ name: 'Automation', href: '/automation', icon: Cpu }] : []),
+        { name: 'Settings', href: '/settings', icon: Settings },
+      ];
 
   return (
     <aside
@@ -170,7 +175,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
                 : 'Loading...'}
             </span>
             <span className="text-[10px] text-sidebar-text-muted font-mono tracking-tighter truncate uppercase">
-              {userRole.replace('_', ' ')}
+              {isLeadgenManager ? 'leadgen manager' : userRole.replace('_', ' ')}
             </span>
           </div>
         )}

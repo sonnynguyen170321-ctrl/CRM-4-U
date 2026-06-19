@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 
@@ -45,8 +46,16 @@ interface Task {
 }
 
 export default function DashboardPage() {
-  const { isManager } = useAppContext();
+  const { isManager, currentRole, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
+  const router = useRouter();
+
+  // Leadgen has its own environment — send them there instead of the task dashboard.
+  useEffect(() => {
+    if (!isSessionLoading && currentRole === 'leadgen') {
+      router.replace('/leadgen');
+    }
+  }, [isSessionLoading, currentRole, router]);
 
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [yesterdayTasks, setYesterdayTasks] = useState<Task[]>([]);

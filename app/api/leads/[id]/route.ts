@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessUser } from '@/lib/auth';
+import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { unenrollLead } from '@/lib/sequences/engine';
@@ -41,7 +41,7 @@ export async function GET(
   });
 
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!(await canAccessUser(user, lead.assignedToId))) {
+  if (!(await canAccessLead(user, lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -72,7 +72,7 @@ export async function PUT(
 
   const existing = await prisma.lead.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!(await canAccessUser(user, existing.assignedToId))) {
+  if (!(await canAccessLead(user, existing))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -200,10 +200,10 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const lead = await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true } });
+  const lead = await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true, campaignId: true } });
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  if (!(await canAccessUser(user, lead.assignedToId))) {
+  if (!(await canAccessLead(user, lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

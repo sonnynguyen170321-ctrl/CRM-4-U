@@ -8,7 +8,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         async create({ model, args, query }) {
           const result = await query(args);
           
-          if (model === 'AuditLog') return result;
+          if (model === 'AuditLog' || model === 'Tenant') return result;
 
           try {
             const userId = (args.data as any).createdById || 
@@ -38,7 +38,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         },
 
         async update({ model, args, query }) {
-          if (model === 'AuditLog') return query(args);
+          if (model === 'AuditLog' || model === 'Tenant') return query(args);
 
           let currentData: any = null;
           try {
@@ -96,7 +96,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         },
 
         async delete({ model, args, query }) {
-          if (model === 'AuditLog') return query(args);
+          if (model === 'AuditLog' || model === 'Tenant') return query(args);
 
           let currentData: any = null;
           try {

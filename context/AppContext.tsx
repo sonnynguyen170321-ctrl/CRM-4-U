@@ -11,6 +11,7 @@ interface AppContextType {
   currentUserId: string;
   currentUser: { firstName: string; lastName: string; email: string } | null;
   isManager: boolean;
+  isLeadgenManager: boolean;
   activeNewModal: 'lead' | 'task' | 'reminder' | 'campaign' | null;
   setActiveNewModal: (type: 'lead' | 'task' | 'reminder' | 'campaign' | null) => void;
   isSessionLoading: boolean;
@@ -36,6 +37,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentRole: UserRole = overrideRole ?? sessionRole ?? 'sdr';
   const currentUserId: string = (session?.user as any)?.id ?? '';
   const isManager: boolean = currentRole !== 'sdr' && currentRole !== 'leadgen';
+  const isLeadgenManager: boolean =
+    currentRole === 'leadgen' &&
+    (sessionRole === 'director' ||
+      sessionRole === 'floor_manager' ||
+      (sessionRole === 'leadgen' && !!(session?.user as any)?.isManager));
+
   const currentUser = session?.user
     ? {
         firstName: (session.user as any).firstName ?? '',
@@ -58,6 +65,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currentUserId,
         currentUser,
         isManager,
+        isLeadgenManager,
         activeNewModal,
         setActiveNewModal,
         isSessionLoading: status === 'loading',

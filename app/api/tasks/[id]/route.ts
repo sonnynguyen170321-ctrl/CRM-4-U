@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessUser } from '@/lib/auth';
+import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { advanceSequence } from '@/lib/sequences/engine';
 import { nextBusinessDay } from '@/lib/dates/businessDays';
@@ -18,7 +18,7 @@ export async function GET(
   const { id } = await params;
   const task = await prisma.task.findUnique({ where: { id }, include: { lead: true } });
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!(await canAccessUser(user, task.userId))) {
+  if (!(await canAccessUser(user, task.userId)) && !(await canAccessLead(user, task.lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   return NextResponse.json(task);
@@ -42,7 +42,7 @@ export async function PUT(
     include: { lead: true },
   });
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!(await canAccessUser(user, task.userId))) {
+  if (!(await canAccessUser(user, task.userId)) && !(await canAccessLead(user, task.lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -130,10 +130,13 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const existing = await prisma.task.findUnique({ where: { id }, select: { userId: true } });
+  const existing = await prisma.task.findUnique({
+    where: { id },
+    select: { userId: true, lead: { select: { assignedToId: true, campaignId: true } } },
+  });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  if (!(await canAccessUser(user, existing.userId))) {
+  if (!(await canAccessUser(user, existing.userId)) && !(await canAccessLead(user, existing.lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
+import { canImportExport } from '@/lib/permissions';
 import dynamic from 'next/dynamic';
 
 // Modular subcomponents
 import CampaignOverview from '@/components/team/CampaignOverview';
 import TeamLeaderboard from '@/components/team/TeamLeaderboard';
 import OverdueAlerts from '@/components/team/OverdueAlerts';
+import RepProgressTracker from '@/components/team/RepProgressTracker';
+import MeetingsBoard from '@/components/team/MeetingsBoard';
 
 // Loaded on demand: the slide-over and the recharts-heavy campaign drill-down
 // (~50KB) only render on interaction, so their chunks stay out of the initial bundle.
@@ -36,7 +39,7 @@ export default function TeamViewPage() {
   }, [isSessionLoading, isManager, router]);
 
   // Navigation states
-  const [activeTab, setActiveTab] = useState<'campaigns' | 'performance'>('campaigns');
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'performance' | 'progress' | 'meetings'>('campaigns');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
   // Filter states
@@ -148,9 +151,11 @@ export default function TeamViewPage() {
       } else {
         fetchCampaignsOverview();
       }
-    } else {
+    } else if (activeTab === 'performance') {
       fetchLeaderboard();
       fetchAlerts();
+    } else {
+      setIsLoading(false);
     }
   }, [currentRole, activeTab, selectedCampaignId, fetchCampaignsOverview, fetchCampaignDetails, fetchLeaderboard, fetchAlerts]);
 
@@ -405,7 +410,11 @@ ${detail.sequences && detail.sequences.length > 0 ? `
               Campaigns
             </button>
             <button
-              onClick={() => setActiveTab('performance')}
+              onClick={() => {
+                setActiveTab('performance');
+                setSelectedCampaignId(null);
+                setCampaignDetail(null);
+              }}
               className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
                 activeTab === 'performance'
                   ? 'bg-brand-red text-white shadow-sm'
@@ -414,6 +423,36 @@ ${detail.sequences && detail.sequences.length > 0 ? `
             >
               Team Performance
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('progress');
+                setSelectedCampaignId(null);
+                setCampaignDetail(null);
+              }}
+              className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                activeTab === 'progress'
+                  ? 'bg-brand-red text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Rep Progress & Conversion
+            </button>
+            {['director', 'floor_manager'].includes(currentRole || '') && (
+              <button
+                onClick={() => {
+                  setActiveTab('meetings');
+                  setSelectedCampaignId(null);
+                  setCampaignDetail(null);
+                }}
+                className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  activeTab === 'meetings'
+                    ? 'bg-brand-red text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                Meetings Console
+              </button>
+            )}
           </div>
         ) : (
           <div className="text-xs font-mono font-bold text-brand-orange uppercase">
@@ -522,6 +561,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
               onExportPDF={() => handleExportPDF(campaignDetail)}
               onExportCSV={() => handleExportCSV(campaignDetail)}
               showTabsSwitcher={!isSdr}
+              canExport={canImportExport(currentRole)}
             />
           ) : (
             <CampaignOverview
@@ -530,6 +570,10 @@ ${detail.sequences && detail.sequences.length > 0 ? `
               dateRange={dateRange}
             />
           )
+        ) : activeTab === 'meetings' ? (
+          <MeetingsBoard onSelectLead={setSelectedLeadId} />
+        ) : activeTab === 'progress' ? (
+          <RepProgressTracker users={users} dateRange={dateRange} />
         ) : (
           /* Performance Tab: leaderboard + alerts side-by-side */
           <div className="space-y-6">

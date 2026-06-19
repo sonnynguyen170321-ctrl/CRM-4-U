@@ -60,6 +60,7 @@ interface CampaignDetailProps {
   onExportPDF: () => void;
   onExportCSV: () => void;
   showTabsSwitcher: boolean;
+  canExport: boolean;
 }
 
 export default function CampaignDetail({
@@ -68,7 +69,8 @@ export default function CampaignDetail({
   dateRange: _dateRange,
   onExportPDF,
   onExportCSV,
-  showTabsSwitcher
+  showTabsSwitcher,
+  canExport
 }: CampaignDetailProps) {
   const { kpis, stageCounts, sequences, reps } = data;
 
@@ -117,20 +119,22 @@ export default function CampaignDetail({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={onExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-card-bg hover:bg-card-bg/80 border border-card-border text-text-secondary text-xs font-semibold rounded-lg transition-colors"
-          >
-            Export CSV
-          </button>
-          <button
-            onClick={onExportPDF}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm shadow-indigo-600/10"
-          >
-            Export PDF
-          </button>
-        </div>
+        {canExport && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={onExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-card-bg hover:bg-card-bg/80 border border-card-border text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={onExportPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm shadow-indigo-600/10"
+            >
+              Export PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Six KPI cards */}

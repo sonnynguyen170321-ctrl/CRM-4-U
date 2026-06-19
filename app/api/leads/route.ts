@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, getVisibleUserIds, canAccessUser } from '@/lib/auth';
+import { requireAuth, canAccessUser, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { parseBody, capLimit } from '@/lib/validation/core';
@@ -24,11 +24,9 @@ export async function GET(req: NextRequest) {
   const dateTo = searchParams.get('dateTo') || undefined;
   const limit = capLimit(searchParams.get('limit'), 200, 500);
 
-  // Pod scoping: director sees all, FM their floor, TL/leadgen their pod, SDR self
-  const visibleIds = await getVisibleUserIds(user);
-  const roleScope: Record<string, unknown> = visibleIds
-    ? { assignedToId: { in: visibleIds } }
-    : {};
+  // Scope: user axis for SDR/TL/FM/Director, account axis for leadgen.
+  // Director / leadgen-manager → all; leadgen-member → assigned campaigns only.
+  const roleScope = await getLeadWhereScope(user);
 
   try {
     const leads = await prisma.lead.findMany({

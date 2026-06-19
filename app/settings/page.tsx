@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
+import TeamAccountsPanel from '@/components/settings/TeamAccountsPanel';
 
 interface EmailAccount {
   id: string;
@@ -786,17 +787,7 @@ function SettingsPageInner() {
             <span>Admin Control Panel</span>
           </h3>
 
-          {currentRole !== 'director' ? (
-            <div className="p-4 bg-brand-red/5 border border-brand-red/10 rounded-xl space-y-2 text-xs">
-              <div className="flex items-center gap-1.5 text-brand-red font-semibold">
-                <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-                <span>Console Blocked</span>
-              </div>
-              <p className="text-[11px] text-text-secondary leading-normal">
-                User management, BPO client integrations, and platform seeds are locked for standard SDR roles.
-              </p>
-            </div>
-          ) : (
+          {currentRole === 'director' ? (
             <div className="space-y-6 text-xs animate-in fade-in duration-200">
 
               {/* User Management */}
@@ -880,6 +871,11 @@ function SettingsPageInner() {
                 </div>
               )}
 
+              {/* Team & Accounts assignment (org-wide for director) */}
+              <div className="border-t border-card-border/50 pt-4">
+                <TeamAccountsPanel />
+              </div>
+
               {/* Data Export */}
               <div className="border-t border-card-border/50 pt-4 space-y-2">
                 <h4 className="font-bold text-text-primary">Data Export</h4>
@@ -905,6 +901,20 @@ function SettingsPageInner() {
                   Re-Seed Showcase Demo Data
                 </button>
               </div>
+            </div>
+          ) : currentRole === 'floor_manager' || currentRole === 'leadgen' ? (
+            <div className="animate-in fade-in duration-200">
+              <TeamAccountsPanel />
+            </div>
+          ) : (
+            <div className="p-4 bg-brand-red/5 border border-brand-red/10 rounded-xl space-y-2 text-xs">
+              <div className="flex items-center gap-1.5 text-brand-red font-semibold">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                <span>Console Blocked</span>
+              </div>
+              <p className="text-[11px] text-text-secondary leading-normal">
+                User management, BPO client integrations, and platform seeds are locked for your role.
+              </p>
             </div>
           )}
         </div>

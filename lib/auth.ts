@@ -91,3 +91,103 @@ export function buildRoleScope(user: SessionUser) {
       return { assignedToId: user.id };
   }
 }
+
+/** Roles allowed to import and export leads. SDR + Team Lead are intentionally excluded. */
+export function canImportExport(role: SessionUser['role']): boolean {
+  return role === 'director' || role === 'floor_manager' || role === 'leadgen';
+}
+
+/**
+ * Leadgen splits into a Manager and Members. A leadgen user is a **Member** only
+ * if their manager is *also* a leadgen user (i.e. they report up to the Leadgen
+ * Manager); otherwise they ARE the Leadgen Manager (sees all leads). Members are
+ * scoped to the accounts/campaigns assigned to them via CampaignSdr.
+ */
+export async function getLeadgenScope(
+  user: SessionUser
+): Promise<{ kind: 'manager' } | { kind: 'member'; campaignIds: string[] }> {
+  const me = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { manager: { select: { role: true } } },
+  });
+  if (me?.manager?.role === 'leadgen') {
+    const assignments = await prisma.campaignSdr.findMany({
+      where: { userId: user.id },
+      select: { campaignId: true },
+    });
+    return { kind: 'member', campaignIds: assignments.map((a) => a.campaignId) };
+  }
+  return { kind: 'manager' };
+}
+
+/**
+ * The campaign IDs (accounts) this viewer may see, or `null` for unrestricted.
+ * Account axis (used for the Accounts views). Director / leadgen-manager → null.
+ * FM / Team Lead / SDR → campaigns any of their visible users are assigned to.
+ * Leadgen member → only their directly-assigned campaigns.
+ */
+export async function getVisibleCampaignIds(user: SessionUser): Promise<string[] | null> {
+  if (user.role === 'director') return null;
+  if (user.role === 'leadgen') {
+    const scope = await getLeadgenScope(user);
+    return scope.kind === 'manager' ? null : scope.campaignIds;
+  }
+  const visibleIds = await getVisibleUserIds(user);
+  if (visibleIds === null) return null;
+  const rows = await prisma.campaignSdr.findMany({
+    where: { userId: { in: visibleIds } },
+    select: { campaignId: true },
+  });
+  return [...new Set(rows.map((r) => r.campaignId))];
+}
+
+/**
+ * Prisma `where` fragment scoping a lead query for this viewer.
+ * Leadgen scopes by ACCOUNT (campaign); everyone else by assignee (user axis).
+ *
+ * Team Leads and Floor Managers get a UNION of the user axis (leads assigned to
+ * their pod) AND the account axis (any lead in a campaign their team/floor is
+ * assigned to) — so they can jump in and work any lead in their accounts to help
+ * SDRs. Director sees all; SDR sees only their own.
+ */
+export async function getLeadWhereScope(user: SessionUser): Promise<Record<string, unknown>> {
+  if (user.role === 'leadgen') {
+    const scope = await getLeadgenScope(user);
+    if (scope.kind === 'manager') return {}; // all leads org-wide
+    return { campaignId: { in: scope.campaignIds } }; // member: assigned accounts only
+  }
+  const visibleIds = await getVisibleUserIds(user);
+  if (visibleIds === null) return {}; // director — all leads
+
+  if (user.role === 'team_lead' || user.role === 'floor_manager') {
+    const campaignIds = await getVisibleCampaignIds(user);
+    if (campaignIds === null) return {}; // safety; only director/leadgen-mgr return null
+    return {
+      OR: [
+        { assignedToId: { in: visibleIds } },
+        ...(campaignIds.length > 0 ? [{ campaignId: { in: campaignIds } }] : []),
+      ],
+    };
+  }
+
+  return { assignedToId: { in: visibleIds } };
+}
+
+/**
+ * True when the viewer may see/modify a specific lead. User axis OR account axis:
+ * the lead is assigned to someone the viewer manages (`canAccessUser`), OR the
+ * lead's campaign is one the viewer's team/floor is assigned to
+ * (`getVisibleCampaignIds`). Use in lead-owned write/read-guard paths instead of
+ * `canAccessUser(viewer, lead.assignedToId)` so Team Leads / Floor Managers can
+ * work any lead in their accounts (even unassigned or assigned to an SDR).
+ */
+export async function canAccessLead(
+  viewer: SessionUser,
+  lead: { assignedToId: string | null; campaignId: string | null }
+): Promise<boolean> {
+  if (await canAccessUser(viewer, lead.assignedToId ?? viewer.id)) return true;
+  if (!lead.campaignId) return false;
+  const campaignIds = await getVisibleCampaignIds(viewer);
+  if (campaignIds === null) return true; // unrestricted (director / leadgen-manager)
+  return campaignIds.includes(lead.campaignId);
+}

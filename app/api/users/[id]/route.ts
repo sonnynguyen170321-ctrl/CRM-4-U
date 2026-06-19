@@ -52,8 +52,15 @@ export async function PUT(
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
-  // Users can update themselves; directors can update anyone
-  if (currentUser.id !== id && currentUser.role !== 'director') {
+  const isSelf = currentUser.id === id;
+  const isDirector = currentUser.role === 'director';
+  const isFloorManager = currentUser.role === 'floor_manager';
+
+  // A Floor Manager may manage team membership for users inside their own floor.
+  const fmCanManage = isFloorManager && !isSelf && (await canAccessUser(currentUser, id));
+
+  // Authorize: self, director (any), or floor manager editing an in-floor user.
+  if (!isSelf && !isDirector && !fmCanManage) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -61,16 +68,30 @@ export async function PUT(
   if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const updateData: any = {};
-  if (body.firstName !== undefined) updateData.firstName = body.firstName;
-  if (body.lastName !== undefined) updateData.lastName = body.lastName;
-  if (body.timezone !== undefined) updateData.timezone = body.timezone;
-  if (body.avatarUrl !== undefined) updateData.avatarUrl = body.avatarUrl;
+
+  // Profile fields: only the user themselves or a director.
+  if (isSelf || isDirector) {
+    if (body.firstName !== undefined) updateData.firstName = body.firstName;
+    if (body.lastName !== undefined) updateData.lastName = body.lastName;
+    if (body.timezone !== undefined) updateData.timezone = body.timezone;
+    if (body.avatarUrl !== undefined) updateData.avatarUrl = body.avatarUrl;
+  }
 
   // Director-only fields
-  if (currentUser.role === 'director') {
+  if (isDirector) {
     if (body.role !== undefined) updateData.role = body.role;
     if (body.managerId !== undefined) updateData.managerId = body.managerId;
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
+  }
+
+  // Floor Manager — may reassign team membership (managerId) within their floor.
+  // Both the target (checked above) and the new manager must be inside the floor;
+  // null (orphaning the user) stays Director-only.
+  if (fmCanManage && body.managerId !== undefined && body.managerId !== null) {
+    if (!(await canAccessUser(currentUser, body.managerId))) {
+      return NextResponse.json({ error: 'Forbidden: manager outside your floor' }, { status: 403 });
+    }
+    updateData.managerId = body.managerId;
   }
 
   // Password reset — directors only; regular users must use /api/settings/password

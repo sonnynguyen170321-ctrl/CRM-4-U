@@ -15,6 +15,7 @@ import {
 import Linkedin from '@/components/icons/Linkedin';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
+import { canImportExport } from '@/lib/permissions';
 import dynamic from 'next/dynamic';
 
 // Heavy, interaction-only components — loaded on demand so they don't bloat the
@@ -502,13 +503,15 @@ export default function LeadsPage() {
               <TableProperties className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-card-bg border border-card-border hover:bg-background text-text-primary text-xs font-semibold rounded-lg shadow-sm transition-colors focus-ring"
-          >
-            <Upload className="w-4 h-4" aria-hidden="true" />
-            <span>Import CSV</span>
-          </button>
+          {canImportExport(currentRole) && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-card-bg border border-card-border hover:bg-background text-text-primary text-xs font-semibold rounded-lg shadow-sm transition-colors focus-ring"
+            >
+              <Upload className="w-4 h-4" aria-hidden="true" />
+              <span>Import CSV</span>
+            </button>
+          )}
           <button
             onClick={() => setShowNewLeadModal(true)}
             aria-label="Add new lead to pipeline"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessUser } from '@/lib/auth';
+import { requireAuth, canAccessUser, canImportExport, getLeadgenScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { createTaskForStep } from '@/lib/sequences/engine';
@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
+  // Only import-capable roles may import (SDR + Team Lead excluded).
+  if (!canImportExport(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   let body: ImportBody;
   try {
     body = await req.json();
@@ -56,6 +61,14 @@ export async function POST(req: NextRequest) {
   }
   if (body.leads.length > 5000) {
     return NextResponse.json({ error: 'Too many rows — max 5000 per import' }, { status: 400 });
+  }
+
+  // Leadgen members may only import into accounts (campaigns) assigned to them.
+  if (user.role === 'leadgen' && body.campaignId) {
+    const scope = await getLeadgenScope(user);
+    if (scope.kind === 'member' && !scope.campaignIds.includes(body.campaignId)) {
+      return NextResponse.json({ error: 'Forbidden: campaign not assigned to you' }, { status: 403 });
+    }
   }
 
   // Fetch existing leads for dedup (email > name+company > phone, SKILL.md §24)
