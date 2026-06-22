@@ -1,18 +1,28 @@
 import { PrismaClient } from '@prisma/client';
 import { neonConfig } from '@neondatabase/serverless';
 import { PrismaNeon } from '@prisma/adapter-neon';
+import { cache } from 'react';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
 export { tenantStorage };
 
 // Route non-transactional pool queries over HTTP — no TCP handshake on cold start.
-// PrismaNeon (Pool-based) is used instead of PrismaNeonHTTP because the RLS middleware
-// relies on $transaction([set_config, set_config, query]), which HTTP-only mode cannot support.
+// With DB_RLS_ENFORCED off (default) every query is a single statement and uses this
+// fast HTTP path; only when DB-level RLS is on do we fall back to a pooled transaction.
 neonConfig.poolQueryViaFetch = true;
+
+// Whether Postgres-level Row-Level Security is actually enforced on the target DB
+// (i.e. `supabase/rls.sql` has been applied — production Supabase). When false (Neon /
+// dev / single-tenant), the app-layer `tenantId` arg injection below is the isolation
+// layer, and we SKIP the per-query `set_config` transaction — which otherwise forces the
+// slower pooled-TCP path and ~3 round-trips on every single query.
+const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
-async function getTenantIdFromSession(): Promise<string | null> {
+// Resolve the tenant from the session ONCE per request. `cache()` memoizes within a
+// single request, so a handler making N queries decodes the session once, not N times.
+const getTenantIdFromSession = cache(async function getTenantIdFromSession(): Promise<string | null> {
   try {
     // Run the auth() call in a context where RLS is bypassed to prevent recursive DB calls
     return await tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, async () => {
@@ -24,7 +34,7 @@ async function getTenantIdFromSession(): Promise<string | null> {
     // Fail silently when cookies/headers are not available (e.g. outside request context)
     return null;
   }
-}
+});
 
 function createPrismaClient() {
   const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
@@ -68,6 +78,10 @@ function createPrismaClient() {
               throw new Error(`Unauthorized: No tenant context active for operation ${operation} on model ${model}`);
             }
 
+            // Without DB-level RLS there's nothing to bypass — run directly over HTTP.
+            if (!DB_RLS_ENFORCED) {
+              return query(args);
+            }
             const [, result] = await client.$transaction([
               client.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`,
               query(args),
@@ -115,7 +129,12 @@ function createPrismaClient() {
             }
           }
 
-          // 4. Run inside database transaction setting the RLS parameters (Secondary isolation layer)
+          // 4. The app-layer tenantId injection above is the isolation layer. Only when
+          // DB-level RLS is enforced do we also set the GUCs inside a transaction (the
+          // secondary, defense-in-depth layer) — otherwise run a single HTTP query.
+          if (!DB_RLS_ENFORCED) {
+            return query(args);
+          }
           const [, , result] = await client.$transaction([
             client.$executeRaw`SELECT set_config('app.bypass_rls', 'false', true)`,
             client.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
