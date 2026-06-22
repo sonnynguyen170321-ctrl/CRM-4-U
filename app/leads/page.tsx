@@ -644,7 +644,7 @@ export default function LeadsPage() {
 
       {/* Leads Content */}
       {viewMode === 'kanban' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 flex-1 items-stretch">
+        <div className="flex gap-4 flex-1 items-stretch overflow-x-auto pb-2">
           {columns.map((col) => {
             const colLeads = leadsByStage[col.id] ?? [];
             const isHovered = isDraggedOver[col.id];
@@ -658,7 +658,7 @@ export default function LeadsPage() {
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={() => handleDragLeave(col.id)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`rounded-2xl border flex flex-col p-3.5 shadow-sm min-h-[400px] transition-colors duration-200 ${
+                className={`rounded-2xl border flex flex-col p-3.5 shadow-sm min-h-[400px] w-[300px] flex-shrink-0 transition-colors duration-200 ${
                   isHovered ? 'border-brand-red border-dashed bg-brand-red/[0.03]' : col.color
                 }`}
               >

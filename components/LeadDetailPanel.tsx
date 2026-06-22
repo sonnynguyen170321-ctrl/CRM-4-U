@@ -35,6 +35,7 @@ interface LeadDetail {
   lastContactedAt?: string;
   sequenceId?: string | null;
   sequenceStep?: number | null;
+  sequenceStatus?: 'active' | 'paused' | null;
   sequence?: { id: string; name: string; steps: any[] } | null;
   notes?: NoteItem[];
   tasks?: TaskItem[];
@@ -518,7 +519,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     });
     setEnrolling(null);
     if (res.ok) {
-      setLead((prev) => prev ? { ...prev, sequenceId, sequenceStep: 1, sequence: sequences.find((s) => s.id === sequenceId) ?? prev.sequence } : prev);
+      setLead((prev) => prev ? { ...prev, sequenceId, sequenceStep: 1, sequenceStatus: 'active', sequence: sequences.find((s) => s.id === sequenceId) ?? prev.sequence } : prev);
       showToast('Lead enrolled in sequence', 'success');
     } else {
       showToast('Failed to enroll lead', 'error');
@@ -535,7 +536,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     });
     setEnrolling(null);
     if (res.ok) {
-      setLead((prev) => prev ? { ...prev, sequenceId: null, sequenceStep: null } : prev);
+      setLead((prev) => prev ? { ...prev, sequenceId: null, sequenceStep: null, sequenceStatus: null } : prev);
       showToast('Lead unenrolled from sequence', 'success');
     } else {
       showToast('Failed to unenroll lead', 'error');
@@ -635,8 +636,8 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           </div>
         </div>
 
-        {/* Sequence progress bar (if enrolled) */}
-        {lead.sequenceId && lead.sequence && (
+        {/* Sequence progress bar (only while the enrollment is active) */}
+        {lead.sequenceStatus === 'active' && lead.sequence && (
           <div className="px-4 py-2.5 border-b border-card-border bg-blue-500/5">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-bold font-mono text-blue-500 uppercase tracking-wide flex items-center gap-1">
@@ -875,7 +876,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 )}
               </div>
 
-              {lead.sequence && (
+              {lead.sequenceStatus === 'active' && lead.sequence && (
                 <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Active Sequence</h3>
                   <div className="flex items-center justify-between text-xs">
@@ -1264,7 +1265,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           {activeTab === 'sequences' && (
             <div className="space-y-4">
               {/* Active sequence */}
-              {lead.sequenceId && lead.sequence ? (
+              {lead.sequenceStatus === 'active' && lead.sequence ? (
                 <div className="glass-card rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1304,7 +1305,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               {/* Available sequences */}
               <div>
                 <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
-                  {lead.sequenceId ? 'Switch Sequence' : 'Available Sequences'}
+                  {lead.sequenceStatus === 'active' ? 'Switch Sequence' : 'Available Sequences'}
                 </h3>
                 {sequences.length === 0 ? (
                   <p className="text-xs text-text-muted">No sequences found.</p>

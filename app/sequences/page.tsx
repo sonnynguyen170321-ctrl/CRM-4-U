@@ -226,7 +226,7 @@ export default function SequencesPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
-            Sequences Cadences
+            Sequence Cadences
           </h1>
           <p className="text-xs text-text-secondary mt-0.5">
             Design multi-step, multi-channel automated drip touchpoints for campaigns.

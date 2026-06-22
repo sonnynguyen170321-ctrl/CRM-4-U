@@ -442,7 +442,7 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   // ─── Sequences ────────────────────────────────────────────────────────────
   const seqCold = await prisma.sequence.create({
     data: {
-      name: 'Cold Outreach — 5 Step',
+      name: 'Cold Outreach',
       description: 'Standard cold outreach across email, phone, and LinkedIn for ERP prospects.',
       isActive: true,
       createdById: dean.id,
@@ -541,8 +541,13 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
         source: 'CSV Import',
         tags: ['B2B', l.campaign.id === cmp1.id ? 'ERP' : l.campaign.id === cmp2.id ? 'Fintech' : 'Logistics'],
         priority: l.priority as any,
-        sequenceId: ['sequence_active', 'replied'].includes(l.stage) ? seqCold.id : null,
-        sequenceStep: l.stage === 'sequence_active' ? 2 : l.stage === 'replied' ? 3 : null,
+        // Only genuinely-active leads carry an active enrollment. Leads that have
+        // replied (or moved to meeting/won/lost) are auto-unenrolled per the product
+        // rules, so they get no sequence link — keeps the UI from showing a phantom
+        // "Active Sequence" on a lead that's no longer being sequenced.
+        sequenceId: l.stage === 'sequence_active' ? seqCold.id : null,
+        sequenceStep: l.stage === 'sequence_active' ? 2 : null,
+        sequenceStatus: l.stage === 'sequence_active' ? 'active' : null,
         lastContactedAt: ['replied', 'meeting_booked', 'won'].includes(l.stage) ? d(-2) : null,
       },
     });

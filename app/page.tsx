@@ -45,6 +45,24 @@ interface Task {
   priority: string;
 }
 
+/**
+ * Activity-feed timestamp: show just the time for today's entries, but prefix the
+ * date for older ones so a reverse-chron feed that spans days doesn't read as if
+ * the times were out of order (e.g. "10:18" sitting above "Jun 21 · 17:20").
+ */
+function formatActivityTimestamp(dateStr: string): string {
+  const date = new Date(dateStr);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (isToday) return time;
+  const day = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${day} · ${time}`;
+}
+
 export default function DashboardPage() {
   const { isManager, currentRole, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
@@ -652,7 +670,7 @@ export default function DashboardPage() {
                           <p className="text-xs text-text-muted font-mono mt-0.5">Outcome: {act.metadata.outcome}</p>
                         )}
                         <span className="text-xs text-text-muted font-mono block mt-0.5">
-                          {new Date(act.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatActivityTimestamp(act.createdAt)}
                         </span>
                       </div>
                     </div>
