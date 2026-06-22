@@ -174,18 +174,35 @@ export async function getLeadWhereScope(user: SessionUser): Promise<Record<strin
 }
 
 /**
+ * Roles whose lead access extends along the ACCOUNT axis (any lead in a campaign
+ * they're assigned to), not just the user axis. Team Leads / Floor Managers jump
+ * into their accounts to help; Director sees all; leadgen members work their
+ * assigned accounts. **SDRs are intentionally excluded** — an SDR may only touch
+ * their own leads, never a teammate's lead in a shared campaign.
+ */
+const ACCOUNT_AXIS_ROLES: ReadonlyArray<SessionUser['role']> = [
+  'director',
+  'floor_manager',
+  'team_lead',
+  'leadgen',
+];
+
+/**
  * True when the viewer may see/modify a specific lead. User axis OR account axis:
- * the lead is assigned to someone the viewer manages (`canAccessUser`), OR the
- * lead's campaign is one the viewer's team/floor is assigned to
- * (`getVisibleCampaignIds`). Use in lead-owned write/read-guard paths instead of
- * `canAccessUser(viewer, lead.assignedToId)` so Team Leads / Floor Managers can
- * work any lead in their accounts (even unassigned or assigned to an SDR).
+ * the lead is assigned to someone the viewer manages (`canAccessUser`), OR — for
+ * account-axis roles only — the lead's campaign is one the viewer's team/floor is
+ * assigned to (`getVisibleCampaignIds`). Use in lead-owned write/read-guard paths
+ * instead of `canAccessUser(viewer, lead.assignedToId)` so Team Leads / Floor
+ * Managers can work any lead in their accounts (even unassigned or assigned to an
+ * SDR), while SDRs stay restricted to their own leads.
  */
 export async function canAccessLead(
   viewer: SessionUser,
   lead: { assignedToId: string | null; campaignId: string | null }
 ): Promise<boolean> {
   if (await canAccessUser(viewer, lead.assignedToId ?? viewer.id)) return true;
+  // Account axis is a manager/leadgen privilege only — never widens SDR access.
+  if (!ACCOUNT_AXIS_ROLES.includes(viewer.role)) return false;
   if (!lead.campaignId) return false;
   const campaignIds = await getVisibleCampaignIds(viewer);
   if (campaignIds === null) return true; // unrestricted (director / leadgen-manager)

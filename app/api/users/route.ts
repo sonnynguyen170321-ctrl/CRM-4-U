@@ -32,8 +32,11 @@ export async function GET() {
     orderBy: [{ role: 'asc' }, { lastName: 'asc' }],
   });
 
+  // Per-user-scoped (pod members vary by viewer): never store in a shared/edge
+  // cache, and don't reuse across a session switch. `no-store` prevents both the
+  // cross-user edge-cache leak and stale-after-switch data.
   return NextResponse.json(users, {
-    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+    headers: { 'Cache-Control': 'no-store' },
   });
 }
 

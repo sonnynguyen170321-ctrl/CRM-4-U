@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         select: { id: true, name: true, industry: true },
       });
       return NextResponse.json({ clients }, {
-        headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+        headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
       });
     }
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(campaigns, {
-      headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
     });
   } catch (err) {
     return handleApiError('api/campaigns GET', err);

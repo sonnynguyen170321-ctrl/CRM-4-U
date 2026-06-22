@@ -4,6 +4,17 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
+// `@aws-sdk/client-kms` is an OPTIONAL, server-only dependency that is only loaded
+// when KMS_KEY_ARN is set (production AWS deployments). It is not installed in the
+// default/local setup. Holding the specifier in a variable keeps the bundler from
+// statically resolving it (which would emit a spurious "module not found" warning
+// on every request); it is required lazily at runtime inside a try/catch instead.
+const KMS_MODULE = '@aws-sdk/client-kms';
+
+async function loadKms(): Promise<any> {
+  return import(/* webpackIgnore: true */ /* turbopackIgnore: true */ KMS_MODULE);
+}
+
 function getKey(): Buffer {
   const hex = process.env.ENCRYPTION_KEY;
   if (!hex || hex.length !== 64) {
@@ -18,8 +29,7 @@ export async function encrypt(plaintext: string): Promise<string> {
 
   if (kmsKeyArn) {
     try {
-      // @ts-expect-error — optional AWS SDK dependency
-      const { KMSClient, GenerateDataKeyCommand } = await import('@aws-sdk/client-kms');
+      const { KMSClient, GenerateDataKeyCommand } = await loadKms();
       const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
       const kmsResponse = await kms.send(
         new GenerateDataKeyCommand({
@@ -65,8 +75,7 @@ export async function decrypt(encoded: string): Promise<string> {
       const rawPayload = Buffer.from(encoded.substring(4), 'base64').toString('utf8');
       const payload = JSON.parse(rawPayload);
 
-      // @ts-expect-error — optional AWS SDK dependency
-      const { KMSClient, DecryptCommand } = await import('@aws-sdk/client-kms');
+      const { KMSClient, DecryptCommand } = await loadKms();
       const kms = new KMSClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
       const kmsResponse = await kms.send(

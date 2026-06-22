@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(sequences, {
-      headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
     });
   } catch (err) {
     return handleApiError('api/sequences GET', err);
