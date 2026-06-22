@@ -218,7 +218,8 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
 
   return (
     <header
-      className="fixed top-0 right-0 z-10 flex items-center justify-between px-6 py-3 glass-topbar h-16 xl:left-52 left-14"
+      className="fixed top-0 right-0 z-10 flex items-center justify-between px-6 py-3 glass-topbar h-16"
+      style={{ left: 'var(--sidebar-w, 56px)' }}
     >
       {/* Global Search */}
       <div className="flex-1 max-w-md relative" ref={searchRef}>
@@ -306,7 +307,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-all duration-150 hover:scale-[1.02] active:scale-[0.97] focus-ring"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Action</span>
+            <span className="inline">New Action</span>
             <ChevronDown className="w-3.5 h-3.5 opacity-80" />
           </button>
 
@@ -462,7 +463,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase">
               {displayInitial}
             </div>
-            <div className="hidden sm:flex flex-col text-left">
+            <div className="flex flex-col text-left">
               <span className="text-xs font-semibold text-text-primary leading-tight">{displayName}</span>
               <span className="text-[10px] text-text-muted leading-tight font-mono capitalize">
                 {currentRole.replace('_', ' ')}

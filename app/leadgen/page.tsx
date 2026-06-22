@@ -273,7 +273,7 @@ export default function LeadgenPage() {
 
       {/* Stats bar */}
       <div className="px-6 py-3 border-b border-card-border bg-background flex-shrink-0">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {[
             { label: 'Total Leads Pool', value: leads.length, icon: Target, color: 'text-purple-400' },
             { label: 'Imported This Week', value: importedThisWeek, icon: Upload, color: 'text-blue-400' },
@@ -582,7 +582,7 @@ export default function LeadgenPage() {
                 </div>
 
                 {/* Daily Export Action Card */}
-                <div className="bg-card-bg border border-card-border p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="bg-card-bg border border-card-border p-6 rounded-2xl flex flex-row justify-between items-center gap-4">
                   <div className="space-y-1">
                     <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
                       <FileSpreadsheet className="w-5 h-5 text-purple-400" />

@@ -244,7 +244,7 @@ export default function SequencesPage() {
       </div>
 
       {selectedSeq === null ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6">
           {sequences.length === 0 && (
             <div className="col-span-3 text-center py-12 text-text-muted text-xs">
               No sequences yet. Create one to get started.
@@ -317,8 +317,8 @@ export default function SequencesPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 items-start">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-3 gap-6 flex-1 items-start">
+          <div className="col-span-2 space-y-4">
             <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
               <div>
                 <span className="text-[10px] uppercase font-bold text-text-muted font-mono tracking-wider">

@@ -187,7 +187,7 @@ export default function AutomationDashboard() {
   return (
     <div className="space-y-6 flex-1 flex flex-col animate-in fade-in duration-200">
       {/* Page Hero Header */}
-      <div className="page-hero flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             AI Automation Control Center
@@ -206,7 +206,7 @@ export default function AutomationDashboard() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 stagger-container">
+      <div className="grid grid-cols-3 gap-5 stagger-container">
         {/* Metric 1 */}
         <div className="glass-card rounded-2xl p-5 hover-lift relative overflow-hidden flex items-center gap-4 stagger-child">
           <div className="w-12 h-12 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-xl flex items-center justify-center">
@@ -242,10 +242,10 @@ export default function AutomationDashboard() {
       </div>
 
       {/* Main Execution Board & Account Limit Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-12 gap-6 items-start">
         
         {/* Left Hand: Manual Actions / Triggers */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="col-span-5 space-y-6">
           
           {/* Action Card: Sequence Engine */}
           <div className="glass-card rounded-2xl p-5 space-y-4">
@@ -371,7 +371,7 @@ export default function AutomationDashboard() {
         </div>
 
         {/* Right Hand: Active Connected Email Accounts */}
-        <div className="lg:col-span-7 glass-card rounded-2xl p-5 space-y-4">
+        <div className="col-span-7 glass-card rounded-2xl p-5 space-y-4">
           <div className="space-y-1">
             <h3 className="font-display font-extrabold text-sm text-text-primary">
               Active Outbound Accounts & Daily Limits

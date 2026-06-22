@@ -360,16 +360,16 @@ function SettingsPageInner() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-3 gap-6 items-start">
         {/* Personal Profile & Email Connections */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="col-span-2 space-y-6">
           {/* Profile Card */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
             <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
               <Globe className="w-4 h-4 text-brand-orange" />
               <span>Personal Profile</span>
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
                   First Name

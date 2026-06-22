@@ -8,6 +8,7 @@ import NewLeadModal from './NewLeadModal';
 import NewTaskModal from './NewTaskModal';
 import NewReminderModal from './NewReminderModal';
 import NewCampaignModal from './NewCampaignModal';
+import DesktopOnlyGate from './DesktopOnlyGate';
 import { useAppContext } from '@/context/AppContext';
 
 // Keep the Neon DB warm while the app is actively in use. Pinging every 4 minutes
@@ -36,10 +37,11 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   }, []);
 
   if (pathname === '/login') {
-    return <>{children}</>;
+    return <DesktopOnlyGate>{children}</DesktopOnlyGate>;
   }
 
   return (
+    <DesktopOnlyGate>
     <div className="min-h-screen flex bg-bg-main text-text-main transition-colors duration-200">
       <Sidebar userRole={currentRole} />
 
@@ -80,5 +82,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         <NewCampaignModal onClose={() => setActiveNewModal(null)} />
       )}
     </div>
+    </DesktopOnlyGate>
   );
 }

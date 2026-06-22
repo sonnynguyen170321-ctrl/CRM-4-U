@@ -174,7 +174,7 @@ export default function CommandPalette() {
               }}
               className="flex-1 bg-transparent border-0 text-xs text-text-primary placeholder-text-muted focus:outline-none h-full"
             />
-            <span className="hidden sm:inline-block px-1.5 py-0.5 border border-card-border bg-background rounded text-[9px] font-mono text-text-muted">
+            <span className="inline-block px-1.5 py-0.5 border border-card-border bg-background rounded text-[9px] font-mono text-text-muted">
               ESC
             </span>
           </div>

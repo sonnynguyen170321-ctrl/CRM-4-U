@@ -27,7 +27,7 @@ interface OverdueAlertsProps {
 
 export default function OverdueAlerts({ users, atRiskLeads, onSelectLead }: OverdueAlertsProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-6">
       {/* SDRs Overdue Monitor */}
       <div className="glass-card rounded-2xl p-5 hover-lift space-y-4 flex flex-col justify-between">
         <div className="space-y-4">

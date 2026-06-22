@@ -40,7 +40,7 @@ export default function LeadgenTeamProgress() {
   return (
     <div className="space-y-6">
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
+      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
             <BarChart2 className="w-4 h-4 text-brand-red" />
@@ -57,7 +57,7 @@ export default function LeadgenTeamProgress() {
 
         <button
           onClick={fetchStats}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
+          className="w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Stats</span>
@@ -75,7 +75,7 @@ export default function LeadgenTeamProgress() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {/* Visual Cards per Member */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             {stats.map((member) => {
               const conversionRate = member.assignedCount > 0 
                 ? Math.round((member.qualifiedCount / member.assignedCount) * 100)

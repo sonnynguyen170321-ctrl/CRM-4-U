@@ -101,7 +101,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
   return (
     <div className="space-y-6">
       {/* Metrics Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <span className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Total Booked</span>
@@ -144,16 +144,16 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
       </div>
 
       {/* Table Actions Control */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 w-auto">
           <input
             type="text"
             placeholder="Search meetings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-background border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-full sm:w-60 font-semibold"
+            className="bg-background border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-60 font-semibold"
           />
-          <div className="flex bg-background border border-card-border rounded-lg p-0.5 gap-0.5 w-full sm:w-auto">
+          <div className="flex bg-background border border-card-border rounded-lg p-0.5 gap-0.5 w-auto">
             {['all', 'scheduled', 'won', 'lost'].map((st) => (
               <button
                 key={st}
@@ -172,7 +172,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
 
         <button
           onClick={fetchMeetings}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
+          className="w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Board</span>

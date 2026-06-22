@@ -244,7 +244,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6 flex-1 flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             Templates Library
@@ -255,14 +255,14 @@ export default function TemplatesPage() {
         </div>
         <button
           onClick={handleNewTemplate}
-          className="flex items-center gap-1.5 px-3 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors self-auto"
         >
           <Plus className="w-4 h-4" />
           <span>New Template</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 items-stretch">
+      <div className="grid grid-cols-3 gap-6 flex-1 items-stretch">
         {/* List pane */}
         <div className="space-y-4">
           <div className="bg-card-bg border border-card-border rounded-xl p-3 shadow-sm space-y-2">
@@ -336,7 +336,7 @@ export default function TemplatesPage() {
         </div>
 
         {/* Editor pane */}
-        <div className="lg:col-span-2 bg-card-bg border border-card-border rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+        <div className="col-span-2 bg-card-bg border border-card-border rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
           {selectedTemp === null ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-text-muted space-y-3">
               <div className="w-12 h-12 bg-card-border/50 border border-card-border rounded-2xl flex items-center justify-center text-text-secondary">

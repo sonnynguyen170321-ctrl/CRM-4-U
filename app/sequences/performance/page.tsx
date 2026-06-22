@@ -86,7 +86,7 @@ export default function SequencePerformancePage() {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-blue-500 mb-3">
             <Send className="w-4 h-4" />
@@ -142,8 +142,8 @@ export default function SequencePerformancePage() {
       </div>
 
       {/* Sequence list with drill-down */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-1">
           <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
             <h2 className="font-display font-bold text-sm text-text-primary mb-3 flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-brand-orange" />
@@ -175,13 +175,13 @@ export default function SequencePerformancePage() {
           </div>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="col-span-2">
           {selectedSeq && seqAnalytics ? (
             <div className="space-y-4">
               {/* Sequence metrics */}
               <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
                 <h2 className="font-display font-bold text-sm text-text-primary mb-4">Campaign Metrics</h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
                     <div className="text-[10px] font-mono text-text-muted uppercase">Enrolled</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.totalEnrolled}</div>
@@ -199,7 +199,7 @@ export default function SequencePerformancePage() {
                     <div className="text-lg font-display font-extrabold text-red-500">{seqAnalytics.bounceRate}%</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-card-border">
+                <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-card-border">
                   <div>
                     <div className="text-[10px] font-mono text-text-muted uppercase">Total Sends</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.totalSends}</div>

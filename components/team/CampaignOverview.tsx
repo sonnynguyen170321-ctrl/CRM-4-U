@@ -39,7 +39,7 @@ export default function CampaignOverview({
   return (
     <div className="space-y-6">
       {/* Aggregate KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-container">
+      <div className="grid grid-cols-4 gap-4 stagger-container">
         {[
           {
             label: 'Total Meetings Booked',

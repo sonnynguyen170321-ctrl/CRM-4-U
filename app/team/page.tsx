@@ -377,7 +377,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
   return (
     <div className="space-y-6 flex-1 flex flex-col animate-in fade-in duration-200">
       {/* Title block */}
-      <div className="page-hero flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             {isSdr ? 'My Campaign Performance' : 'Organization Team View'}
@@ -537,7 +537,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
             </>
           )}
 
-          <span className="text-[10px] font-mono text-text-muted hidden sm:inline">
+          <span className="text-[10px] font-mono text-text-muted inline">
             {dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'This week' : 'This month'}
           </span>
         </div>

@@ -98,7 +98,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
   return (
     <div className="space-y-6">
       {/* Selector Hub */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
+      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
             <Award className="w-4 h-4 text-brand-red" />
@@ -138,9 +138,9 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
           Select an SDR to load performance analytics.
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6">
           {/* Funnel Metrics Card */}
-          <div className="lg:col-span-2 glass-card rounded-2xl p-5 hover-lift space-y-4">
+          <div className="col-span-2 glass-card rounded-2xl p-5 hover-lift space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-brand-orange" />
@@ -149,8 +149,8 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
               <span className="text-[10px] font-mono text-text-muted">Leads distribution</span>
             </div>
             
-            <div className="flex flex-col md:flex-row gap-6 items-center">
-              <div className="w-full md:w-2/3">
+            <div className="flex flex-row gap-6 items-center">
+              <div className="w-2/3">
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart
                     layout="vertical"
@@ -185,7 +185,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
               </div>
 
               {/* Conversion ratios */}
-              <div className="w-full md:w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
+              <div className="w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
                 <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Stage Conversion</h4>
                 <div className="space-y-2 text-xs">
                   {[
@@ -245,13 +245,13 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
           </div>
 
           {/* Recent Outcomes Activity list */}
-          <div className="lg:col-span-3 glass-card rounded-2xl p-5 hover-lift space-y-4">
+          <div className="col-span-3 glass-card rounded-2xl p-5 hover-lift space-y-4">
             <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
               <Clock className="w-5 h-5 text-brand-red" />
               <span>Recent Outcomes Activity Feed</span>
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                 <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Recent Touchpoints</h4>
                 {data.recentOutcomes.length === 0 ? (

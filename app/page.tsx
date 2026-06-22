@@ -342,13 +342,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 flex-1 flex flex-col">
       {/* Header */}
-      <div className="page-hero flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             {!isManager ? 'My Daily Tasks' : 'Team Tasks Dashboard'}
           </h1>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-auto">
           {isManager && sdrUsers.length > 0 && (
             <div className="flex items-center gap-2 bg-card-bg border border-card-border p-1.5 rounded-xl">
               <span className="text-xs font-bold font-mono text-text-muted pl-2 uppercase">Rep:</span>
@@ -397,9 +397,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Layout */}
-      <div className={`grid grid-cols-1 gap-6 flex-1 items-start ${showStats ? 'lg:grid-cols-3' : ''}`}>
+      <div className={`grid gap-6 flex-1 items-start ${showStats ? 'grid-cols-3' : 'grid-cols-1'}`}>
         {/* Task Hub */}
-        <div className={`glass-card rounded-2xl overflow-hidden flex flex-col ${showStats ? 'lg:col-span-2' : ''}`}>
+        <div className={`glass-card rounded-2xl overflow-hidden flex flex-col ${showStats ? 'col-span-2' : ''}`}>
           <div className="flex items-center px-5 py-4 border-b border-card-border bg-background/25 gap-2">
             {(['today', 'overdue', 'yesterday'] as const).map((tab) => {
               const count =
@@ -450,7 +450,7 @@ export default function DashboardPage() {
               return (
                 <div
                   key={task.id}
-                  className="p-4 transition-all hover:bg-background/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                  className="p-4 transition-all hover:bg-background/40 flex flex-row items-center justify-between gap-3 group"
                 >
                   <div className="flex items-start gap-3 min-w-0">
                     <div
@@ -487,7 +487,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto flex-shrink-0">
+                  <div className="flex items-center gap-1.5 self-auto flex-shrink-0">
                     {task.status === 'pending' ? (
                       <>
                         <button

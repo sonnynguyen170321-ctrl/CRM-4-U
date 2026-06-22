@@ -23,7 +23,10 @@ Dark sidebar, light content area (white or very light gray). Logo in sidebar hea
 
 ## Layout & Typography
 
-- **Desktop-first** at 1280px+. Collapse sidebar to icons-only below that.
+- **Desktop-only.** The CRM targets desktop (1280px+) exclusively — there is no mobile/responsive
+  support. Below 1024px a full-screen "use desktop" gate (`components/DesktopOnlyGate.tsx`) blocks the
+  app instead of reflowing. Do **not** add Tailwind responsive breakpoint utilities (`sm:`/`md:`/`lg:`).
+  The sidebar collapse is a manual user preference (icon-only ↔ expanded), not viewport-driven.
 - Body text 13–14px for density. Monospace accents for IDs and timestamps.
 - Tight spacing: 12–16px padding in cards, 8px gaps in lists, 36–40px table row height.
 - 1px solid muted borders. Subtle elevation only for modals and slide-over panels.

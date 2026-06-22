@@ -466,7 +466,7 @@ export default function LeadsPage() {
   return (
     <div className="space-y-6 flex-1 flex flex-col">
       {/* Header */}
-      <div className="page-hero flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             Leads Pipeline
@@ -478,7 +478,7 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-auto">
           <div className="flex rounded-lg border border-card-border overflow-hidden shadow-sm">
             <button
               onClick={() => handleSetViewMode('kanban')}
@@ -525,9 +525,9 @@ export default function LeadsPage() {
 
       {/* Filters Toolbar — progressive disclosure */}
       <div className="glass-card rounded-xl p-3">
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-row items-center gap-3">
           {/* Search */}
-          <div className="relative w-full sm:max-w-xs flex-shrink-0">
+          <div className="relative max-w-xs flex-shrink-0">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">
               <Search className="w-3.5 h-3.5" />
             </span>
