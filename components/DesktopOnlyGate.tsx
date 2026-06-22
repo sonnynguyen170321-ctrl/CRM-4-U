@@ -1,23 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
-// Telestar CRM is a desktop-only internal tool. Below this width we block the app
-// with a notice instead of rendering a layout that was never designed to reflow.
-const MIN_DESKTOP_WIDTH = 1024;
-
+// Telestar CRM is a desktop-only internal tool. Below the desktop width we block
+// the app with a notice instead of rendering a layout that was never designed to reflow.
 export default function DesktopOnlyGate({ children }: { children: React.ReactNode }) {
-  // Assume desktop on the first (server + initial client) render so SSR markup
-  // matches; correct it after mount once we can measure the real viewport.
-  const [isDesktop, setIsDesktop] = useState(true);
-
-  useEffect(() => {
-    const mql = window.matchMedia(`(min-width: ${MIN_DESKTOP_WIDTH}px)`);
-    const update = () => setIsDesktop(mql.matches);
-    update();
-    mql.addEventListener('change', update);
-    return () => mql.removeEventListener('change', update);
-  }, []);
+  const isDesktop = useIsDesktop();
 
   if (isDesktop) {
     return <>{children}</>;

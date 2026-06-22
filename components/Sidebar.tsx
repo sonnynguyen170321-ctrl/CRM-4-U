@@ -13,6 +13,7 @@ import {
   Target,
   TrendingUp,
   Cpu,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -54,6 +55,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
       ]
     : [
         { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+        ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
         { name: 'Leads', href: '/leads', icon: Users },
         { name: 'Sequences', href: '/sequences', icon: Repeat },
         { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
 import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/provider';
 import type { ModelId } from '@/lib/ai/provider';
@@ -109,6 +110,7 @@ function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: 
 export default function AiAssistant() {
   const { currentUserId, currentUser, currentRole, isSessionLoading } = useAppContext();
   const pathname = usePathname();
+  const isDesktop = useIsDesktop();
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -534,7 +536,7 @@ export default function AiAssistant() {
   const hasLead = typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>).__crm_lead_context;
   const chips = getContextChips(pathname, hasLead);
 
-  if (isSessionLoading || !currentUserId || pathname === '/login') return null;
+  if (isSessionLoading || !currentUserId || pathname === '/login' || !isDesktop) return null;
 
   return (
     <>

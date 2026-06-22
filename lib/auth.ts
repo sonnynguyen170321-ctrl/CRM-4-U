@@ -200,7 +200,10 @@ export async function canAccessLead(
   viewer: SessionUser,
   lead: { assignedToId: string | null; campaignId: string | null }
 ): Promise<boolean> {
-  if (await canAccessUser(viewer, lead.assignedToId ?? viewer.id)) return true;
+  // User axis: only when the lead actually has an assignee. An UNASSIGNED lead is
+  // not "owned by me" — it is reachable solely via the account axis below, so an
+  // SDR can never touch an unassigned lead in a shared campaign.
+  if (lead.assignedToId && (await canAccessUser(viewer, lead.assignedToId))) return true;
   // Account axis is a manager/leadgen privilege only — never widens SDR access.
   if (!ACCOUNT_AXIS_ROLES.includes(viewer.role)) return false;
   if (!lead.campaignId) return false;

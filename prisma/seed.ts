@@ -691,15 +691,9 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: lan.id,
-      type: 'task_overdue',
-      text: 'You have 2 overdue tasks requiring action.',
-      linkTo: '/',
-      isRead: false,
-    },
-  });
+  // Note: overdue-task notifications are created live (and de-duplicated) by
+  // /api/notifications/check on dashboard load — we don't seed one here, otherwise
+  // it duplicates the live one with near-identical wording in the bell.
 
   console.log('✅ Notifications created');
   console.log('\n🚀 Seed complete! Login credentials: all users use password: telestar2026');

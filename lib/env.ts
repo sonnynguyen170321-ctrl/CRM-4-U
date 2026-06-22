@@ -17,6 +17,9 @@ const OPTIONAL_GROUPS: Record<string, string[]> = {
   'Gmail OAuth': ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'],
   'Microsoft OAuth': ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_REDIRECT_URI'],
   'Cron auth': ['CRON_SECRET'],
+  // AI SDR assistant: Groq is primary, Gemini the fallback. With neither key the
+  // assistant degrades gracefully, so this stays a warning (not a hard requirement).
+  'AI assistant': ['GROQ_API_KEY'],
 };
 
 export function validateEnv(): void {

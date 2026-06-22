@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   Search,
   Users,
@@ -26,6 +27,7 @@ interface CommandItem {
 export default function CommandPalette() {
   const router = useRouter();
   const { setRole } = useAppContext();
+  const isDesktop = useIsDesktop();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -136,6 +138,10 @@ export default function CommandPalette() {
       }
     }
   }, [activeIndex]);
+
+  // Desktop-only app: don't mount the command palette (or its slide-over host) on
+  // small screens, where the DesktopOnlyGate notice is showing instead of the app.
+  if (!isDesktop) return null;
 
   if (!isOpen) {
     return (
