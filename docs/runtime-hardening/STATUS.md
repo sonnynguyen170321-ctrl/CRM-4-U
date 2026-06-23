@@ -3,8 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P2 — BullMQ foundation (in progress)
-**Next unchecked task:** `P2` — `lib/workflows/*` workflow definitions for multi-step processes.
+**Current phase:** P3 — Sequence worker (in progress)
+**Next unchecked task:** `P3` — jobs `enroll/advance/pause/unenroll/rebuild` inside sequence worker.
 **Blockers:** none.
 
 ## Decisions locked
@@ -28,6 +28,7 @@
 - 2026-06-23 — **P1.5** ✓ — SequenceEnrollment: removed full `@@unique([leadId,sequenceId])`; replaced with partial `WHERE status='active'` via raw SQL. Enum already has `completed|unenrolled`.
 - 2026-06-23 — **P1.7** ✓ — Lead dedup: partial unique index on `(tenantId, campaignId, normalizedEmail)` where `normalizedEmail IS NOT NULL`.
 - 2026-06-23 — **P1.2/P1.3/P1.6/P1.8** ✓ — Verified as already present in schema (checkbox ticked).
+- 2026-06-23 — **P2 Workflows** ✓ — Multi-step workflow definitions created under `lib/workflows/{import,sequence,email}.ts` to isolate job enqueuing. Tested and fully passing.
 
 ## How to resume (any machine)
 1. `git pull`

@@ -4,6 +4,9 @@ import { wrapProcessor } from '@/lib/bullmq/workerUtils';
 import { prisma } from '@/lib/prisma';
 import { JobType } from '@/lib/bullmq/types';
 import { tenantStorage } from '@/lib/tenant-context';
+import { startImportWorkflow } from '@/lib/workflows/import';
+import { startSequenceEnrollWorkflow, enqueueSequenceAdvanceWorkflow } from '@/lib/workflows/sequence';
+import { enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 
 // Mock BullMQ Queue and Worker to avoid connecting to real Redis during tests
 vi.mock('bullmq', async (importOriginal) => {
@@ -155,5 +158,56 @@ describe('BullMQ Foundation & JobRun Tracking', () => {
     expect(jobRun?.completedAt).not.toBeNull();
     expect(jobRun?.failedReason).toBe('Test processor failure');
     expect(jobRun?.result).toBeNull();
+  });
+});
+
+describe('Workflows Enqueuing Helpers', () => {
+  const tenantId = 'default-tenant';
+
+  beforeEach(async () => {
+    await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+      await prisma.jobRun.deleteMany();
+    });
+  });
+
+  it('should enqueue import workflow successfully', async () => {
+    const jobId = await startImportWorkflow('batch-123', tenantId);
+    expect(jobId).toBeDefined();
+
+    const jobRun = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+      return prisma.jobRun.findUnique({ where: { id: jobId } });
+    });
+    expect(jobRun?.jobName).toBe(JobType.IMPORT_PARSE);
+  });
+
+  it('should enqueue sequence enrollment workflows successfully', async () => {
+    const jobIdEnroll = await startSequenceEnrollWorkflow('lead-1', 'seq-1', 'user-1', tenantId);
+    expect(jobIdEnroll).toBeDefined();
+
+    const jobIdAdvance = await enqueueSequenceAdvanceWorkflow('lead-1', 'seq-1', 2, tenantId);
+    expect(jobIdAdvance).toBeDefined();
+
+    const jobRuns = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+      return prisma.jobRun.findMany();
+    });
+    expect(jobRuns.map(r => r.jobName)).toContain(JobType.SEQUENCE_ENROLL);
+    expect(jobRuns.map(r => r.jobName)).toContain(JobType.SEQUENCE_ADVANCE);
+  });
+
+  it('should enqueue email workflows successfully', async () => {
+    const payload = {
+      outboundMessageId: 'msg-1',
+      accountId: 'acc-1',
+      to: 'test@example.com',
+      subject: 'Hello',
+      body: 'World',
+    };
+    const jobId = await enqueueEmailSendWorkflow(payload, tenantId);
+    expect(jobId).toBeDefined();
+
+    const jobRun = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+      return prisma.jobRun.findUnique({ where: { id: jobId } });
+    });
+    expect(jobRun?.jobName).toBe(JobType.EMAIL_SEND);
   });
 });
