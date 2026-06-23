@@ -119,7 +119,7 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 
 ### P8 — (optional) Premium data model
 - [x] **Phase 1:** Add `Account` model; add `accountId` + `engagementScore` to Lead; rename `priority` → `crmPriorityScore`.  Migration populates Account from existing Lead companies.
-- [ ] **Phase 2 (future):** Extract `Contact` from Lead; extract `LeadAssignment` from Lead (requires migrating FK references on 7 child models).
+- [x] **Phase 2:** Add `Contact` model (person-level dedup); add `contactId` FK to Lead. Migration populates Contact from existing Lead data. Lead creation paths create/find Contact first. Person fields retained on Lead for backward compat (`lead.contact.firstName` available for new code).
 
 ### P9 — UI wiring (no demo/fake state)
 - [x] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.

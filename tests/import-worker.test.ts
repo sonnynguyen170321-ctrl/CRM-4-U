@@ -13,6 +13,9 @@ const mockLeadCreate = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
 const mockSequenceFindUnique = vi.fn();
+const mockContactFindUnique = vi.fn();
+const mockContactCreate = vi.fn();
+const mockContactUpdate = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
 
@@ -40,6 +43,11 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequence: {
       findUnique: (...args: unknown[]) => mockSequenceFindUnique(...args),
+    },
+    contact: {
+      findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
+      create: (...args: unknown[]) => mockContactCreate(...args),
+      update: (...args: unknown[]) => mockContactUpdate(...args),
     },
   },
 }));
@@ -250,7 +258,12 @@ describe('handleImportParse', () => {
 });
 
 describe('handleImportChunk', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockContactFindUnique.mockResolvedValue(null);
+    mockContactCreate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
+    mockContactUpdate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
+  });
 
   const CHUNK_PAYLOAD: ImportChunkPayload = {
     batchId: 'batch-1',

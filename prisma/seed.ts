@@ -570,7 +570,7 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
         campaignId: l.campaign.id,
         source: 'CSV Import',
         tags: ['B2B', l.campaign.id === cmp1.id ? 'ERP' : l.campaign.id === cmp2.id ? 'Fintech' : 'Logistics'],
-        crmPriorityScore: l.crmPriorityScore as any,
+        crmPriorityScore: l.priority as any,
         normalizedEmail,
         // Only genuinely-active leads carry an active enrollment. Leads that have
         // replied (or moved to meeting/won/lost) are auto-unenrolled per the product

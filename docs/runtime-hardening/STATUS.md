@@ -3,7 +3,7 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P5 — Import worker — **DONE**
+**Current phase:** P8 — Premium data model — **DONE**
 **Next unchecked task:** `P10` — Deployment (managed Redis, separate worker host, teardown Inngest).
 **Blockers:** none.
 **Blockers:** none.
@@ -38,7 +38,8 @@
 - 2026-06-23 — **P7 Notification/Maintenance worker** ✓ — Created `workers/notification.ts` (reminder.due/digest.daily) and `workers/maintenance.ts` (5 repair types: orphan-tasks, stale-sending, stuck-running, missing-delayed, reassignment-drift). Both registered in `workers/index.ts`. Notification worker runs on SYNC queue, maintenance on MAINTENANCE queue. 19 new Vitest unit tests pass across 2 test files (129 total).
 - 2026-06-23 — **P6 Sync/reply/bounce worker** ✓ — Created `workers/sync.ts` with `handleEmailSync` (fetch + classify + apply inline), `handleApplyReply` (idempotent on lead state), `handleApplyBounce` (hard→SuppressionEntry, soft→no suppression). Added `providerMessageId` to `InboxMessage` interface; updated Gmail/Outlook/Imap adapters. Fixed `jobQueue()` routing: `email.sync/apply-reply/apply-bounce` → SYNC queue. Updated inbox-sync cron to enqueue BullMQ jobs. 16 new Vitest tests pass (141 total).
 - 2026-06-23 — **P5 Import worker** ✓ — Refactored `POST /api/leads/import` into two-phase flow (create batch + enqueue, returns 202). Created `workers/import.ts` with `handleImportParse` (validate + scoped dedup + chunk), `handleImportChunk` (create leads with normalized fields + activities + optional sequence enrollment), `handleImportCommit` (count + finalize). Extended `ImportParsePayload`/`ImportChunkPayload` with metadata. Created `lib/leads/normalize.ts` (normalizeEmail, normalizePhone, normalizeLinkedIn). Updated API route to return 202 Accepted. 18 new Vitest tests pass (147 total).
-- 2026-06-23 — **P8 Phase 1 ✓** — Added `Account` model (name, industry, website, linkedIn, size, tenantId); added `accountId` (optional FK) + `engagementScore` (Int?) to Lead; renamed `priority` → `crmPriorityScore` on Lead. Migration populates Account from existing distinct Lead companies. Updated all 11 source files that reference the old `priority` field: `listQuery.ts`, `engine.ts`, `scoring.ts`, `prismaMock.ts`, `mockData.ts`, `app/api/leads/route.ts`, `app/api/leads/[id]/route.ts`, `workers/sequence.ts`, `prisma/seed.ts`, `scoring.test.ts`. API surface keeps `priority` as input field, maps to `crmPriorityScore` internally. Migration SQL created at `prisma/migrations/20260623100000_p8_premium_data_model`. NEXT TASK: P8 Phase 2 is optional — split Contact/LeadAssignment from Lead. Otherwise skip to P10.
+- 2026-06-23 — **P8 Phase 1 ✓** — Added `Account` model (name, industry, website, linkedIn, size, tenantId); added `accountId` (optional FK) + `engagementScore` (Int?) to Lead; renamed `priority` → `crmPriorityScore` on Lead. Migration populates Account from existing distinct Lead companies. Updated all 11 source files referencing old `priority` field. API surface keeps `priority` as input. Migration: `20260623100000_p8_premium_data_model`.
+- 2026-06-23 — **P8 Phase 2 (pragmatic) ✓** — Added `Contact` model (person fields + dedup on `(tenantId, normalizedEmail)`); added `contactId` FK to Lead. Updated `workers/import.ts`, `app/api/leads/route.ts`, `prisma/seed.ts` to create/find Contact before Lead. Person fields retained on Lead for backward compat. Migration: `20260624100000_p8_contact_model`. 162/163 tests pass (admin needs Neon DB).
 
 ## How to resume (any machine)
 1. `git pull`
