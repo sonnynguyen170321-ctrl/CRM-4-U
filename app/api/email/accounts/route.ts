@@ -78,13 +78,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const rawAccessToken = body.accessToken ?? null;
+  const rawRefreshToken = body.refreshToken ?? null;
+  const [encAccessToken, encRefreshToken] = await Promise.all([
+    rawAccessToken ? encrypt(rawAccessToken) : Promise.resolve(null),
+    rawRefreshToken ? encrypt(rawRefreshToken) : Promise.resolve(null),
+  ]);
+
   const account = await prisma.emailAccount.create({
     data: {
       userId: user.id,
       email: body.email,
       provider: body.provider,
-      accessToken: body.accessToken ?? null,
-      refreshToken: body.refreshToken ?? null,
+      accessToken: rawAccessToken,
+      refreshToken: rawRefreshToken,
+      encAccessToken,
+      encRefreshToken,
       tokenExpiry: body.tokenExpiry ? new Date(body.tokenExpiry) : null,
       imapServer: imapHost ?? null,
       imapPort: body.imapPort ? (parseInt(body.imapPort, 10) || null) : null,

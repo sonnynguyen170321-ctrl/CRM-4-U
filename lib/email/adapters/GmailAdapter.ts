@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { encrypt } from '@/lib/crypto';
 
 interface GmailConfig {
   accessToken: string;
@@ -36,12 +37,17 @@ export class GmailAdapter implements EmailAdapter {
     oauth2Client.on('tokens', async (tokens) => {
       if (tokens.access_token && this.config.accountId) {
         const { prisma } = await import('@/lib/prisma');
+        const [encAccessToken, encRefreshToken] = await Promise.all([
+          encrypt(tokens.access_token),
+          tokens.refresh_token ? encrypt(tokens.refresh_token) : Promise.resolve(undefined),
+        ]);
         await prisma.emailAccount.update({
           where: { id: this.config.accountId },
           data: {
             accessToken: tokens.access_token,
+            encAccessToken,
             tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token, encRefreshToken } : {}),
           },
         });
       }
@@ -88,12 +94,17 @@ export class GmailAdapter implements EmailAdapter {
     oauth2Client.on('tokens', async (tokens) => {
       if (tokens.access_token && this.config.accountId) {
         const { prisma } = await import('@/lib/prisma');
+        const [encAccessToken, encRefreshToken] = await Promise.all([
+          encrypt(tokens.access_token),
+          tokens.refresh_token ? encrypt(tokens.refresh_token) : Promise.resolve(undefined),
+        ]);
         await prisma.emailAccount.update({
           where: { id: this.config.accountId },
           data: {
             accessToken: tokens.access_token,
+            encAccessToken,
             tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token, encRefreshToken } : {}),
           },
         });
       }

@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
+import { tenantStorage } from '@/lib/tenant-context';
 
-const prisma = new PrismaClient();
+const raw = new PrismaClient();
 
 const TODAY = new Date();
 const d = (offsetDays: number, hour = 10) => {
@@ -14,25 +16,25 @@ const d = (offsetDays: number, hour = 10) => {
 async function main() {
   console.log('🌱 Seeding Telestar CRM...');
 
-  // ─── Clean ────────────────────────────────────────────────────────────────
-  await prisma.activity.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.reminder.deleteMany();
-  await prisma.note.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.sequenceStep.deleteMany();
-  await prisma.lead.deleteMany();
-  await prisma.sequence.deleteMany();
-  await prisma.template.deleteMany();
-  await prisma.campaignSdr.deleteMany();
-  await prisma.campaign.deleteMany();
-  await prisma.client.deleteMany();
-  await prisma.emailAccount.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.tenant.deleteMany();
+  // ─── Clean (use raw client for cleanup to avoid tenant scoping issues) ─────
+  await raw.activity.deleteMany();
+  await raw.notification.deleteMany();
+  await raw.reminder.deleteMany();
+  await raw.note.deleteMany();
+  await raw.task.deleteMany();
+  await raw.sequenceStep.deleteMany();
+  await raw.lead.deleteMany();
+  await raw.sequence.deleteMany();
+  await raw.template.deleteMany();
+  await raw.campaignSdr.deleteMany();
+  await raw.campaign.deleteMany();
+  await raw.client.deleteMany();
+  await raw.emailAccount.deleteMany();
+  await raw.user.deleteMany();
+  await raw.tenant.deleteMany();
 
   // ─── Tenants ──────────────────────────────────────────────────────────────
-  await prisma.tenant.upsert({
+  await raw.tenant.upsert({
     where: { id: 'default-tenant' },
     update: {},
     create: {
@@ -716,6 +718,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   console.log(`   Leadgen:       dominic@telestar.vn / alex@telestar.vn / priya@telestar.vn`);
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, () => {
+  main()
+    .catch(console.error)
+    .finally(() => { prisma.$disconnect(); raw.$disconnect(); });
+});

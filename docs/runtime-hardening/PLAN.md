@@ -85,15 +85,15 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 
 ### P1 — Schema hardening (`DIRECT_URL` for migrations)
 - [x] **P1.0** Reconcile drift: migrate already-in-schema `Tenant`/`tenantId`/`AiMemory`; seed `upsert`s default tenant **first**.
-- [ ] **P1.1** Tenant cleanup — explicit `tenantId` on all creates; remove blind defaults where safe; worker rejects tenant mismatch.
-- [ ] **P1.2** `JobRun` model (durable mirror) — deterministic `dedupeKey @unique`.
+- [x] **P1.1** Tenant cleanup — explicit `tenantId` on all creates; remove blind defaults where safe; worker rejects tenant mismatch.
+- [x] **P1.2** `JobRun` model (durable mirror) — deterministic `dedupeKey @unique`.
 - [ ] **P1.3** `OutboundMessage` model — server-derived `idempotencyKey @unique`.
 - [ ] **P1.4** `SuppressionEntry` model — order email→domain→company→campaign→tenant→global; fix null-campaignId uniqueness.
 - [ ] **P1.5** `SequenceEnrollment` model + **partial unique `WHERE status='active'`**; enum `completed|unenrolled`; lead fields → read-model.
 - [ ] **P1.6** `ImportBatch` + `ImportRow` models.
 - [ ] **P1.7** Lead `normalizedEmail/Phone/LinkedIn` + partial-unique dedupe (raw SQL; key = `tenant+campaign+normalizedEmail`).
 - [ ] **P1.8** `SequenceStep @@unique([sequenceId, order])`; order 1..n no gaps; no step mutation while active enrollments; `version` for clone-on-edit.
-- [ ] **P1.9** Encrypt `accessToken`/`refreshToken` via `lib/crypto.ts`; backfill; **drop plaintext columns after**; never `select` tokens to UI.
+- [x] **P1.9** Encrypt `accessToken`/`refreshToken` via `lib/crypto.ts`; backfill; **drop plaintext columns after**; never `select` tokens to UI.
 
 ### P2 — BullMQ foundation
 - [x] Install `bullmq` + `ioredis`; create `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`, `workers/{index,healthcheck}.ts`, `scripts/{worker-dev,worker-start}.cjs`.

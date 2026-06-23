@@ -1,4 +1,5 @@
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { encrypt } from '@/lib/crypto';
 
 interface OutlookConfig {
   accessToken: string;
@@ -49,11 +50,17 @@ export class OutlookAdapter implements EmailAdapter {
     }
     if (this.config.accountId) {
       const { prisma } = await import('@/lib/prisma');
+      const [encAccessToken, encRefreshToken] = await Promise.all([
+        encrypt(data.access_token),
+        data.refresh_token ? encrypt(data.refresh_token) : Promise.resolve(undefined),
+      ]);
       await prisma.emailAccount.update({
         where: { id: this.config.accountId },
         data: {
           accessToken: data.access_token,
+          encAccessToken,
           refreshToken: data.refresh_token ?? undefined,
+          encRefreshToken,
           tokenExpiry: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
         },
       });

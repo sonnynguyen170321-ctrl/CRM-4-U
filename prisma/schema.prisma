@@ -450,9 +450,11 @@ model EmailAccount {
   user         User          @relation(fields: [userId], references: [id])
   email        String
   provider     EmailProvider
-  accessToken  String?       @db.Text
-  refreshToken String?       @db.Text
-  tokenExpiry  DateTime?
+  accessToken     String?       @db.Text
+  refreshToken    String?       @db.Text
+  encAccessToken  String?       @db.Text
+  encRefreshToken String?       @db.Text
+  tokenExpiry     DateTime?
   imapServer   String?
   imapPort     Int?
   smtpServer   String?

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { encrypt } from '@/lib/crypto';
 import { exchangeGoogleCode } from '@/lib/email/adapters/GmailAdapter';
 
 export async function GET(req: NextRequest) {
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
   try {
     const { email, accessToken, refreshToken, tokenExpiry } = await exchangeGoogleCode(code);
 
+    const [encAccessToken, encRefreshToken] = await Promise.all([
+      accessToken ? encrypt(accessToken) : Promise.resolve(null),
+      refreshToken ? encrypt(refreshToken) : Promise.resolve(null),
+    ]);
+
     // Check if user already connected this Gmail account
     const existing = await prisma.emailAccount.findFirst({
       where: { userId: user.id, email, provider: 'gmail' },
@@ -41,6 +47,8 @@ export async function GET(req: NextRequest) {
         data: {
           accessToken,
           refreshToken,
+          encAccessToken,
+          encRefreshToken,
           tokenExpiry,
           isActive: true,
           lastSyncAt: new Date(),
@@ -54,6 +62,8 @@ export async function GET(req: NextRequest) {
           provider: 'gmail',
           accessToken,
           refreshToken,
+          encAccessToken,
+          encRefreshToken,
           tokenExpiry,
           isActive: true,
           lastSyncAt: new Date(),

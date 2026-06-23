@@ -51,25 +51,39 @@ export class EmailService {
 
   static async fromAccount(account: EmailAccount): Promise<EmailService> {
     switch (account.provider) {
-      case 'gmail':
+      case 'gmail': {
+        const accessToken = account.encAccessToken
+          ? await decrypt(account.encAccessToken)
+          : account.accessToken;
+        const refreshToken = account.encRefreshToken
+          ? await decrypt(account.encRefreshToken)
+          : account.refreshToken;
         return new EmailService(
           new GmailAdapter({
-            accessToken: account.accessToken!,
-            refreshToken: account.refreshToken!,
+            accessToken: accessToken!,
+            refreshToken: refreshToken!,
             tokenExpiry: account.tokenExpiry ?? undefined,
             accountId: account.id,
           })
         );
+      }
 
-      case 'outlook':
+      case 'outlook': {
+        const accessToken = account.encAccessToken
+          ? await decrypt(account.encAccessToken)
+          : account.accessToken;
+        const refreshToken = account.encRefreshToken
+          ? await decrypt(account.encRefreshToken)
+          : account.refreshToken;
         return new EmailService(
           new OutlookAdapter({
-            accessToken: account.accessToken!,
-            refreshToken: account.refreshToken!,
+            accessToken: accessToken!,
+            refreshToken: refreshToken!,
             tokenExpiry: account.tokenExpiry ?? undefined,
             accountId: account.id,
           })
         );
+      }
 
       case 'imap_smtp':
         return new EmailService(
