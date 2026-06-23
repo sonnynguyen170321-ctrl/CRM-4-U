@@ -201,7 +201,7 @@ describe('handleEmailSend', () => {
     await expect(handleEmailSend(buildPayload())).rejects.toThrow('SMTP connection refused');
 
     const failedUpdate = mockOutboundUpdate.mock.calls.find(
-      (args: unknown[]) => args[0]?.data?.status === 'failed'
+      (args: any[]) => args[0]?.data?.status === 'failed'
     );
     expect(failedUpdate).toBeDefined();
     expect(failedUpdate![0].data.errorMessage).toBe('SMTP connection refused');

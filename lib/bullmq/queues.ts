@@ -1,4 +1,4 @@
-import { Queue } from 'bullmq';
+import { Queue, type ConnectionOptions } from 'bullmq';
 import { getConnection } from './connection';
 import { QUEUES, type QueueName } from './types';
 
@@ -7,7 +7,7 @@ const queues = new Map<QueueName, Queue>();
 function getQueue(name: QueueName): Queue {
   let q = queues.get(name);
   if (!q) {
-    q = new Queue(name, { connection: getConnection() });
+    q = new Queue(name, { connection: getConnection() as unknown as ConnectionOptions });
     queues.set(name, q);
   }
   return q;

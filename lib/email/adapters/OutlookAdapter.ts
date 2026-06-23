@@ -68,7 +68,7 @@ export class OutlookAdapter implements EmailAdapter {
     return data.access_token;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     let token = this.config.accessToken;
 
     const payload: any = {
@@ -110,6 +110,7 @@ export class OutlookAdapter implements EmailAdapter {
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
     // Graph sendMail returns 202 Accepted with no body — no message ID available for reconciliation.
+    return undefined;
   }
 
   /**

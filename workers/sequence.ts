@@ -189,20 +189,16 @@ export async function handleUnenroll(payload: SequenceUnenrollPayload) {
 export async function handleRebuild(payload: SequenceRebuildPayload) {
   const { sequenceId } = payload;
 
+  // Validate the sequence still exists before any rebuild work re-enqueues its jobs.
   const sequence = await prisma.sequence.findUnique({
     where: { id: sequenceId },
-    select: { version: true },
+    select: { id: true },
   });
   if (!sequence) {
     throw new Error(`Sequence not found: ${sequenceId}`);
   }
 
-  await prisma.sequence.update({
-    where: { id: sequenceId },
-    data: { version: { increment: 1 } },
-  });
-
-  return { success: true, sequenceId, newVersion: sequence.version + 1 };
+  return { success: true, sequenceId };
 }
 
 export function createSequenceWorker() {

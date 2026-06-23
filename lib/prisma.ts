@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { neonConfig } from '@neondatabase/serverless';
 import { PrismaNeon } from '@prisma/adapter-neon';
 import { cache } from 'react';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
+import { applyScopedTenant, applyBypassTenant } from './tenant-inject';
 export { tenantStorage };
 
 // Route non-transactional pool queries over HTTP — no TCP handshake on cold start.
@@ -17,6 +18,15 @@ neonConfig.poolQueryViaFetch = true;
 // layer, and we SKIP the per-query `set_config` transaction — which otherwise forces the
 // slower pooled-TCP path and ~3 round-trips on every single query.
 const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
+
+// Models that actually carry a `tenantId` column. The root `Tenant` model does not, so we
+// must never inject a `tenantId` filter/value for it. Derived from the DMMF so it stays in
+// sync with the schema automatically.
+const MODELS_WITH_TENANT: ReadonlySet<string> = new Set(
+  Prisma.dmmf.datamodel.models
+    .filter((m) => m.fields.some((f) => f.name === 'tenantId'))
+    .map((m) => m.name)
+);
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
@@ -40,17 +50,13 @@ function createPrismaClient() {
   const isWorker = process.env.IS_WORKER === 'true';
   const connectionString = isWorker ? (process.env.DIRECT_URL || process.env.DATABASE_URL) : process.env.DATABASE_URL;
 
-  const client = new PrismaClient(
-    isWorker
-      ? {
-          datasources: { db: { url: connectionString } },
-          log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-        }
-      : {
-          adapter: new PrismaNeon({ connectionString: connectionString! }),
-          log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-        }
-  );
+  const log: Prisma.LogLevel[] = process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'];
+
+  // Build with concrete option objects so the constructor overload resolves cleanly (a
+  // ternary that yields a union of option shapes does not satisfy PrismaClient's `Subset`).
+  const client = isWorker
+    ? new PrismaClient({ datasources: { db: { url: connectionString } }, log })
+    : new PrismaClient({ adapter: new PrismaNeon({ connectionString: connectionString! }), log });
 
   return client.$extends(auditExtension).$extends({
     query: {
@@ -59,6 +65,8 @@ function createPrismaClient() {
           if (!model) {
             return query(args);
           }
+
+          const hasTenantField = MODELS_WITH_TENANT.has(model);
 
           // 1. Resolve tenant context
           const store = tenantStorage.getStore();
@@ -76,7 +84,7 @@ function createPrismaClient() {
             bypassRls = true;
           }
 
-          // 2. If bypassing RLS, run the query directly with bypass flag set in session
+          // 2. Bypass-RLS path (workers, seed, scripts, or local-no-session).
           if (bypassRls || !tenantId) {
             if (!tenantId && !isLocalOrScript) {
               // Secure by default: return empty/error in production if no context is found
@@ -84,6 +92,14 @@ function createPrismaClient() {
                 return operation.endsWith('Many') ? [] : null;
               }
               throw new Error(`Unauthorized: No tenant context active for operation ${operation} on model ${model}`);
+            }
+
+            // Even when bypassing RLS *reads*, a known tenant must still be stamped onto
+            // *writes* — the column is NOT NULL and has no DB default. We deliberately do
+            // NOT add a tenantId WHERE-filter here, so cross-tenant reads (e.g. the worker's
+            // JobRun lookup before the tenant is known) keep working.
+            if (tenantId && hasTenantField) {
+              applyBypassTenant(operation, args, tenantId);
             }
 
             // Without DB-level RLS there's nothing to bypass — run directly over HTTP.
@@ -97,44 +113,10 @@ function createPrismaClient() {
             return result;
           }
 
-          // 3. Inject tenantId filter to query arguments (Primary isolation layer for superusers)
-          if (operation.startsWith('find') || operation === 'count' || operation === 'aggregate' || operation === 'groupBy') {
-            args.where = {
-              ...args.where,
-              tenantId,
-            };
-          } else if (operation === 'create') {
-            args.data = {
-              ...args.data,
-              tenantId,
-            };
-          } else if (operation === 'update' || operation === 'upsert') {
-            args.where = {
-              ...args.where,
-              tenantId,
-            };
-            if (args.data) {
-              args.data = {
-                ...args.data,
-                tenantId,
-              };
-            }
-          } else if (operation === 'delete' || operation === 'deleteMany') {
-            args.where = {
-              ...args.where,
-              tenantId,
-            };
-          } else if (operation === 'updateMany') {
-            args.where = {
-              ...args.where,
-              tenantId,
-            };
-            if (args.data) {
-              args.data = {
-                ...args.data,
-                tenantId,
-              };
-            }
+          // 3. Scoped path — inject tenantId into WHERE (reads + targeted writes) and stamp
+          //    it onto write payloads (the primary isolation layer when RLS is off).
+          if (hasTenantField) {
+            applyScopedTenant(operation, args, tenantId);
           }
 
           // 4. The app-layer tenantId injection above is the isolation layer. Only when
@@ -155,7 +137,42 @@ function createPrismaClient() {
   });
 }
 
-// Reuse across hot-reloads in development to avoid exhausting connections.
-export const prisma: PrismaClient = globalForPrisma.prisma ?? createPrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// --- Type-level tenant loosening -------------------------------------------------------
+// The extension above stamps `tenantId` onto every write, so callers must not be forced to
+// pass it. We loosen ONLY `tenantId` on write-input payloads; every other field keeps full
+// type-checking (this is not `as any`). Runtime correctness is guaranteed by the middleware.
+type DistributiveTenantOptional<T> = T extends any
+  ? 'tenantId' extends keyof T
+    ? Omit<T, 'tenantId'> & { tenantId?: T['tenantId'] }
+    : T
+  : never;
 
+type LooseWriteData<D> = D extends readonly (infer E)[]
+  ? DistributiveTenantOptional<E>[]
+  : DistributiveTenantOptional<D>;
+
+type LooseWriteArgs<A> = A extends { data: infer D }
+  ? Omit<A, 'data'> & { data: LooseWriteData<D> }
+  : A extends { create: infer C; update: infer U }
+    ? Omit<A, 'create' | 'update'> & { create: DistributiveTenantOptional<C>; update: DistributiveTenantOptional<U> }
+    : A;
+
+type WriteOp = 'create' | 'createMany' | 'createManyAndReturn' | 'update' | 'updateMany' | 'upsert';
+
+type TenantOptionalDelegate<Delegate> = {
+  [K in keyof Delegate]: K extends WriteOp
+    ? Delegate[K] extends (args: infer A, ...rest: infer Rest) => infer R
+      ? (args: LooseWriteArgs<A>, ...rest: Rest) => R
+      : Delegate[K]
+    : Delegate[K];
+};
+
+type TenantOptionalClient<C> = {
+  [M in keyof C]: C[M] extends { create: (...a: any[]) => any } ? TenantOptionalDelegate<C[M]> : C[M];
+};
+
+// Reuse across hot-reloads in development to avoid exhausting connections.
+const basePrisma = globalForPrisma.prisma ?? createPrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;
+
+export const prisma = basePrisma as unknown as TenantOptionalClient<PrismaClient>;

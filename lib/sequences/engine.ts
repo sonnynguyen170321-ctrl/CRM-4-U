@@ -175,11 +175,13 @@ export async function pauseSequence(
     select: { name: true },
   });
 
+  // No dedicated "paused" ActivityType in the enum — record it as a sequence_unenrolled
+  // activity with `paused: true` in metadata so the feed/analytics can distinguish it.
   await prisma.activity.create({
     data: {
       userId: actorUserId,
       leadId,
-      type: 'sequence_paused',
+      type: 'sequence_unenrolled',
       description: `Sequence "${sequence?.name ?? lead.sequenceId}" paused — ${PAUSE_DESCRIPTIONS[reason]}`,
       metadata: { sequenceId: lead.sequenceId, reason, paused: true },
     },

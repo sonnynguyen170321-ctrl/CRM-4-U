@@ -171,7 +171,13 @@ describe('Workflows Enqueuing Helpers', () => {
   });
 
   it('should enqueue import workflow successfully', async () => {
-    const jobId = await startImportWorkflow('batch-123', tenantId);
+    const jobId = await startImportWorkflow({
+      batchId: 'batch-123',
+      assignedToId: 'user-1',
+      campaignId: 'campaign-1',
+      tenantId,
+      userId: 'user-1',
+    });
     expect(jobId).toBeDefined();
 
     const jobRun = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {

@@ -40,12 +40,10 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
   [JobType.IMPORT_PARSE]: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },
-    timeout: 300000,
   },
   [JobType.IMPORT_CHUNK]: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2000 },
-    timeout: 60000,
   },
   [JobType.MAINTENANCE_HEALTHCHECK]: {
     attempts: 1,
@@ -55,12 +53,10 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
   [JobType.MAINTENANCE_REPAIR]: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 10000 },
-    timeout: 120000,
   },
   [JobType.EMAIL_SYNC]: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 5000 },
-    timeout: 120000,
   },
   [JobType.EMAIL_APPLY_REPLY]: {
     attempts: 3,
@@ -73,7 +69,6 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
   [JobType.IMPORT_COMMIT]: {
     attempts: 3,
     backoff: { type: 'fixed', delay: 5000 },
-    timeout: 120000,
   },
   [JobType.REMINDER_DUE]: {
     attempts: 2,

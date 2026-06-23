@@ -21,7 +21,7 @@ export class GmailAdapter implements EmailAdapter {
     this.config = config;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,

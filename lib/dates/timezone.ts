@@ -25,7 +25,7 @@ export function getLocalDayBoundaries(date: Date, timezone: string): { start: Da
   const day = parseInt(partMap.day, 10);
 
   // Guess target time starts at Date.UTC for that calendar day
-  let guessTime = Date.UTC(year, month, day, 0, 0, 0);
+  const guessTime = Date.UTC(year, month, day, 0, 0, 0);
 
   const getOffset = (t: number) => {
     const f = new Intl.DateTimeFormat('en-US', {

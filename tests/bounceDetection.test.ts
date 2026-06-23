@@ -34,6 +34,7 @@ describe('extractBouncedRecipient', () => {
   it('prefers the X-Failed-Recipients header', () => {
     expect(
       extractBouncedRecipient({
+        providerMessageId: 'msg-1',
         fromEmail: 'mailer-daemon@googlemail.com',
         subject: 'Delivery Status Notification (Failure)',
         date: new Date(),
@@ -45,6 +46,7 @@ describe('extractBouncedRecipient', () => {
   it('falls back to an email found in the subject', () => {
     expect(
       extractBouncedRecipient({
+        providerMessageId: 'msg-2',
         fromEmail: 'postmaster@x.com',
         subject: 'Undeliverable: mail to john@acme.io',
         date: new Date(),
@@ -56,6 +58,7 @@ describe('extractBouncedRecipient', () => {
   it('returns null when nothing is extractable', () => {
     expect(
       extractBouncedRecipient({
+        providerMessageId: 'msg-3',
         fromEmail: 'postmaster@x.com',
         subject: 'Undeliverable message',
         date: new Date(),

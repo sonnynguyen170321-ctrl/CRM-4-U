@@ -57,6 +57,9 @@ export async function POST(req: NextRequest) {
             templateId: step.templateId ?? null,
             instructions: step.instructions,
             autoComplete: step.autoComplete ?? false,
+            // Nested relation creates are not reached by the prisma tenant middleware,
+            // so the tenantId must be set explicitly here.
+            tenantId: user.tenantId!,
           })),
         },
       },

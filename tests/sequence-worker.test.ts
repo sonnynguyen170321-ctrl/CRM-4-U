@@ -121,7 +121,7 @@ describe('handleEnroll', () => {
 
     // Lead updated
     const updateCall = mockUpdate.mock.calls.find(
-      (args: unknown[]) => args[0]?.where?.id === 'lead-1'
+      (args: any[]) => args[0]?.where?.id === 'lead-1'
     );
     expect(updateCall).toBeDefined();
     expect(updateCall![0].data).toMatchObject({
@@ -217,7 +217,7 @@ describe('handleAdvance', () => {
       .mockResolvedValueOnce({ id: 'lead-1', sequenceStep: 1 })
       .mockResolvedValueOnce({ id: 'lead-1', sequenceId: null, sequenceStep: null }); // lead cleared by engine
 
-    await handleAdvance(payload, {} as never);
+    await handleAdvance(payload);
 
     expect(mockAdvanceSequence).toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalledWith({
@@ -231,11 +231,11 @@ describe('handleAdvance', () => {
       .mockResolvedValueOnce({ id: 'lead-1', sequenceStep: 1 })
       .mockResolvedValueOnce({ id: 'lead-1', sequenceId: 'seq-1', sequenceStep: 2 }); // advanced by engine
 
-    await handleAdvance(payload, {} as never);
+    await handleAdvance(payload);
 
     expect(mockAdvanceSequence).toHaveBeenCalled();
     const enrollmentUpdate = mockUpdate.mock.calls.find(
-      (args: unknown[]) => args[0]?.where?.id === 'enrollment-1'
+      (args: any[]) => args[0]?.where?.id === 'enrollment-1'
     );
     expect(enrollmentUpdate![0].data).toMatchObject({ currentStep: 2 });
   });
@@ -300,16 +300,15 @@ describe('handleRebuild', () => {
     vi.clearAllMocks();
   });
 
-  it('increments sequence version', async () => {
-    mockFindUnique.mockResolvedValue({ version: 3 });
-    mockUpdate.mockResolvedValue({});
+  it('validates the sequence exists and returns success', async () => {
+    mockFindUnique.mockResolvedValue({ id: 'seq-1' });
 
     const result = await handleRebuild(payload);
 
-    expect(result).toEqual({ success: true, sequenceId: 'seq-1', newVersion: 4 });
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(result).toEqual({ success: true, sequenceId: 'seq-1' });
+    expect(mockFindUnique).toHaveBeenCalledWith({
       where: { id: 'seq-1' },
-      data: { version: { increment: 1 } },
+      select: { id: true },
     });
   });
 

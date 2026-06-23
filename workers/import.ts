@@ -175,7 +175,7 @@ async function handleImportParse(payload: ImportParsePayload) {
       userId,
       campaignId,
       tenantId,
-      initialStage,
+      initialStage: initialStage ?? 'new',
       sequenceId,
     } satisfies ImportChunkPayload, { tenantId });
   }

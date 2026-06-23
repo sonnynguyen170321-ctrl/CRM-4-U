@@ -462,11 +462,11 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, templateId: tmplColdEmail.id, instructions: 'Send personalised cold intro email. Reference company size or recent news.', autoComplete: true },
-          { order: 2, channel: 'email', delayDays: 3, delayHours: 0, templateId: tmplFollowUp.id, instructions: 'Send follow-up email if no reply to Day 0.', autoComplete: true },
-          { order: 3, channel: 'phone', delayDays: 2, delayHours: 0, templateId: tmplCallScript.id, instructions: 'Make discovery call. Log outcome. If connected, attempt to book meeting.', autoComplete: false },
-          { order: 4, channel: 'linkedin', delayDays: 1, delayHours: 0, templateId: tmplLinkedIn.id, instructions: 'Send LinkedIn connection request with personalised note.', autoComplete: false },
-          { order: 5, channel: 'email', delayDays: 4, delayHours: 0, instructions: 'Final break-up email. Keep it short — give them an easy out.', autoComplete: true },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, templateId: tmplColdEmail.id, instructions: 'Send personalised cold intro email. Reference company size or recent news.', autoComplete: true, tenantId },
+          { order: 2, channel: 'email', delayDays: 3, delayHours: 0, templateId: tmplFollowUp.id, instructions: 'Send follow-up email if no reply to Day 0.', autoComplete: true, tenantId },
+          { order: 3, channel: 'phone', delayDays: 2, delayHours: 0, templateId: tmplCallScript.id, instructions: 'Make discovery call. Log outcome. If connected, attempt to book meeting.', autoComplete: false, tenantId },
+          { order: 4, channel: 'linkedin', delayDays: 1, delayHours: 0, templateId: tmplLinkedIn.id, instructions: 'Send LinkedIn connection request with personalised note.', autoComplete: false, tenantId },
+          { order: 5, channel: 'email', delayDays: 4, delayHours: 0, instructions: 'Final break-up email. Keep it short — give them an easy out.', autoComplete: true, tenantId },
         ],
       },
     },
@@ -480,9 +480,9 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Re-engagement email — reference previous conversation. New value prop or case study.', autoComplete: true },
-          { order: 2, channel: 'whatsapp', delayDays: 2, delayHours: 0, templateId: tmplWhatsApp.id, instructions: 'Send WhatsApp message — short, casual, not pushy.', autoComplete: false },
-          { order: 3, channel: 'phone', delayDays: 3, delayHours: 0, instructions: 'Final call attempt. If no answer, leave voicemail.', autoComplete: false },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Re-engagement email — reference previous conversation. New value prop or case study.', autoComplete: true, tenantId },
+          { order: 2, channel: 'whatsapp', delayDays: 2, delayHours: 0, templateId: tmplWhatsApp.id, instructions: 'Send WhatsApp message — short, casual, not pushy.', autoComplete: false, tenantId },
+          { order: 3, channel: 'phone', delayDays: 3, delayHours: 0, instructions: 'Final call attempt. If no answer, leave voicemail.', autoComplete: false, tenantId },
         ],
       },
     },
@@ -496,27 +496,14 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 2, instructions: 'Send meeting confirmation + agenda. Attach relevant case study.', autoComplete: true },
-          { order: 2, channel: 'linkedin', delayDays: 1, delayHours: 0, instructions: 'Send LinkedIn follow-up — connect if not already connected.', autoComplete: false },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 2, instructions: 'Send meeting confirmation + agenda. Attach relevant case study.', autoComplete: true, tenantId },
+          { order: 2, channel: 'linkedin', delayDays: 1, delayHours: 0, instructions: 'Send LinkedIn follow-up — connect if not already connected.', autoComplete: false, tenantId },
         ],
       },
     },
   });
 
   console.log('✅ Sequences created');
-
-  // ─── Accounts (from distinct lead companies) ───────────────────────────────
-  const uniqueCompanies = [...new Set(leadsData.map(l => l.company).filter(Boolean))];
-  const accounts = new Map<string, string>();
-  for (const company of uniqueCompanies) {
-    const account = await prisma.account.upsert({
-      where: { tenantId_name: { tenantId, name: company } },
-      create: { name: company, tenantId },
-      update: {},
-    });
-    accounts.set(company, account.id);
-  }
-  console.log(`✅ ${accounts.size} Accounts created`);
 
   // ─── Leads ────────────────────────────────────────────────────────────────
   const leadsData = [
@@ -550,6 +537,19 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     { firstName: 'Raj', lastName: 'Mehta', company: 'Mumbai StartupLab', title: 'Founder', email: 'raj.mehta@mumbai-lab.in', stage: 'new', priority: 'cold', assignedTo: priyaLG.id, campaign: cmpLG },
     { firstName: 'Sara', lastName: 'Lindqvist', company: 'StockholmOps', title: 'Operations Manager', email: 's.lindqvist@stockholmops.se', stage: 'replied', priority: 'warm', assignedTo: priyaLG.id, campaign: cmpLG },
   ];
+
+  // ─── Accounts (from distinct lead companies) ───────────────────────────────
+  const uniqueCompanies = [...new Set(leadsData.map(l => l.company).filter(Boolean))];
+  const accounts = new Map<string, string>();
+  for (const company of uniqueCompanies) {
+    const account = await prisma.account.upsert({
+      where: { tenantId_name: { tenantId, name: company } },
+      create: { name: company, tenantId },
+      update: {},
+    });
+    accounts.set(company, account.id);
+  }
+  console.log(`✅ ${accounts.size} Accounts created`);
 
   const createdLeads: any[] = [];
   for (const l of leadsData) {

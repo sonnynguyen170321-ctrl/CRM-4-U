@@ -17,6 +17,9 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   const tenantId = user.tenantId;
+  if (!tenantId) {
+    return NextResponse.json({ error: 'No tenant context' }, { status: 401 });
+  }
 
   let leadCampaignId: string | null = null;
 

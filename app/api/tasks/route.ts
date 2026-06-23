@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
             firstName: true,
             lastName: true,
             company: true,
-            priority: true,
+            crmPriorityScore: true,
             stage: true,
             tags: true,
           },
@@ -84,11 +84,15 @@ export async function GET(req: NextRequest) {
       take: 500,
     });
 
+    // Expose the lead's priority under its public name (`crmPriorityScore` is the DB field).
+    const normalized = tasks.map((t) =>
+      t.lead ? { ...t, lead: { ...t.lead, priority: t.lead.crmPriorityScore } } : t
+    );
     if (tab === 'overdue') {
-      return NextResponse.json(tasks);
+      return NextResponse.json(normalized);
     }
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    const sorted = tasks.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+    const sorted = normalized.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
 
     return NextResponse.json(sorted);
   } catch (err) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Database, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
@@ -150,9 +150,8 @@ export default function JobsAdminPage() {
                 {jobs.map((job) => {
                   const isExpanded = expandedJobId === job.id;
                   return (
-                    <>
+                    <Fragment key={job.id}>
                       <tr
-                        key={job.id}
                         className={`hover:bg-background/40 transition-colors ${
                           isExpanded ? 'bg-background/20' : ''
                         }`}
@@ -254,7 +253,7 @@ export default function JobsAdminPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

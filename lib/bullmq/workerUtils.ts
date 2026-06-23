@@ -1,4 +1,5 @@
-import { Worker, type Job, type Processor } from 'bullmq';
+import { Worker, type Job, type Processor, type ConnectionOptions } from 'bullmq';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { getConnection } from './connection';
@@ -79,7 +80,10 @@ export function wrapProcessor<T = any, R = any>(
             data: {
               status: 'completed',
               completedAt: new Date(),
-              result: result !== undefined ? (typeof result === 'object' ? result : { value: result }) : null,
+              result:
+                result !== undefined
+                  ? ((typeof result === 'object' ? result : { value: result }) as Prisma.InputJsonValue)
+                  : Prisma.DbNull,
             },
           });
         } catch (err) {
@@ -118,7 +122,7 @@ export function createAppWorker<T = any, R = any>(
     queueName,
     wrapProcessor(processor),
     {
-      connection: getConnection(),
+      connection: getConnection() as unknown as ConnectionOptions,
       concurrency: opts.concurrency ?? 1,
     }
   );

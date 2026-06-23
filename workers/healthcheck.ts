@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
+import { getConnection } from '@/lib/bullmq/connection';
 
 export function createHealthcheckWorker(): Worker {
   return createAppWorker(
@@ -9,7 +10,7 @@ export function createHealthcheckWorker(): Worker {
       if (job.name !== 'maintenance.healthcheck') return;
 
       const startedAt = job.data.startedAt;
-      const redisOk = await job.client?.ping().catch(() => null);
+      const redisOk = await getConnection().ping().catch(() => null);
 
       let dbOk = false;
       try {

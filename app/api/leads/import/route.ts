@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canImportExport, canAccessUser, getLeadgenScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
   const rowCreates = body.leads.map((row, i) => ({
     batchId: importBatch.id,
     rowIndex: i + 1,
-    data: row as Record<string, unknown>,
+    data: row as unknown as Prisma.InputJsonValue,
     status: 'pending' as const,
     tenantId,
   }));
