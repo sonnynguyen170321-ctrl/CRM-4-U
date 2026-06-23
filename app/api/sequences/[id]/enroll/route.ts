@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { createTaskForStep, unenrollLead } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
@@ -38,6 +38,14 @@ export async function POST(
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (lead.tenantId !== sequence.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (lead.sequenceId && lead.sequenceId !== id) {
@@ -105,9 +113,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    await unenrollLead(leadId, id);
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const sequence = await prisma.sequence.findUnique({ where: { id } });
+    if (!sequence) {
+      return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
+    }
+
+    if (lead.tenantId !== sequence.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await unenrollLead(leadId, id);
     await prisma.activity.create({
       data: {
         userId: user.id,

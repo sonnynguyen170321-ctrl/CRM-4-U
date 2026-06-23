@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
-import { unenrollLead } from '@/lib/sequences/engine';
+import { unenrollLead, pauseSequence } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';
 
@@ -93,8 +93,6 @@ export async function PUT(
       ...(body.whatsApp !== undefined && { whatsApp: body.whatsApp }),
       ...(body.stage !== undefined && { stage: body.stage }),
       ...(body.assignedToId !== undefined && { assignedToId: body.assignedToId }),
-      ...(body.sequenceId !== undefined && { sequenceId: body.sequenceId }),
-      ...(body.sequenceStep !== undefined && { sequenceStep: body.sequenceStep }),
       ...(body.priority !== undefined && { priority: body.priority }),
       ...(body.tags !== undefined && { tags: body.tags }),
       ...(body.lastContactedAt !== undefined && { lastContactedAt: body.lastContactedAt }),
@@ -153,45 +151,104 @@ export async function PUT(
       });
     }
 
-    // Auto-unenroll from sequence on terminal/milestone stage changes
-    // (also skips the lead's pending sequence tasks so no orphans remain)
-    const unenrollStages = ['meeting_booked', 'won', 'lost'];
-    if (unenrollStages.includes(body.stage) && existing.sequenceId) {
-      await unenrollLead(id, existing.sequenceId);
-      const reason = body.stage === 'meeting_booked' ? 'paused — meeting booked' : 'ended — deal closed';
-      await prisma.activity.create({
-        data: {
-          userId: user.id,
-          leadId: id,
-          type: 'sequence_completed',
-          description: `Sequence ${reason} for ${existing.firstName} ${existing.lastName}`,
-          metadata: { reason: body.stage },
-        },
-      });
-      // Reflect unenrollment in the response so the client doesn't get stale sequenceId
-      updated.sequenceId = null;
-      updated.sequenceStep = null;
+    // Auto-unenroll / pause sequence on stage change
+    if (body.stage && body.stage !== existing.stage && existing.sequenceId) {
+      const isCurrentlyPaused = existing.sequenceStatus === 'paused';
+
+      if (body.stage === 'replied') {
+        if (!isCurrentlyPaused) {
+          await pauseSequence(id, 'replied', user.id);
+          // Notify assigned SDR
+          if (existing.assignedToId) {
+            await prisma.notification.create({
+              data: {
+                userId: existing.assignedToId,
+                type: 'lead_reply',
+                title: 'Lead Replied',
+                text: `${existing.firstName} ${existing.lastName} has replied. Sequence paused.`,
+                linkTo: `/leads/${id}`,
+              },
+            });
+          }
+        }
+      } else if (body.stage === 'meeting_booked') {
+        if (!isCurrentlyPaused) {
+          await pauseSequence(id, 'meeting_booked', user.id);
+        }
+      } else if (body.stage === 'won' || body.stage === 'lost') {
+        await unenrollLead(id, existing.sequenceId);
+        await prisma.activity.create({
+          data: {
+            userId: user.id,
+            leadId: id,
+            type: 'sequence_completed',
+            description: `Sequence ended — deal ${body.stage} for ${existing.firstName} ${existing.lastName}`,
+            metadata: { reason: body.stage },
+          },
+        });
+      }
+
+      // Reflect the updated sequence status in the returned lead object
+      const refetched = await prisma.lead.findUnique({ where: { id } });
+      if (refetched) {
+        updated.sequenceId = refetched.sequenceId;
+        updated.sequenceStep = refetched.sequenceStep;
+        updated.sequenceStatus = refetched.sequenceStatus;
+      }
     }
   }
 
-  // Notify new assignee when lead is reassigned
-  if (body.assignedToId !== undefined && body.assignedToId !== existing.assignedToId && body.assignedToId && body.assignedToId !== user.id) {
-    await prisma.notification.create({
+  // Move pending tasks + log activity + notify both assignees when lead is reassigned
+  if (body.assignedToId !== undefined && body.assignedToId !== existing.assignedToId && body.assignedToId) {
+    // 1. Move all pending tasks to the new assignee
+    await prisma.task.updateMany({
+      where: { leadId: id, status: 'pending' },
+      data: { userId: body.assignedToId },
+    });
+
+    // 2. Log lead_reassigned activity
+    await prisma.activity.create({
       data: {
-        userId: body.assignedToId,
-        type: 'lead_assigned',
-        title: 'Lead Assigned to You',
-        text: `${existing.firstName} ${existing.lastName} (${existing.company}) was assigned to you by ${user.firstName} ${user.lastName}`.trim(),
-        linkTo: `/leads/${id}`,
+        userId: user.id,
+        leadId: id,
+        type: 'lead_reassigned',
+        description: `Lead reassigned from SDR to another SDR`,
+        metadata: { fromUserId: existing.assignedToId, toUserId: body.assignedToId },
       },
     });
+
+    // 3. Notify new assignee (if not the performing user)
+    if (body.assignedToId !== user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: body.assignedToId,
+          type: 'lead_assigned',
+          title: 'Lead Assigned to You',
+          text: `${existing.firstName} ${existing.lastName} (${existing.company}) was assigned to you by ${user.firstName} ${user.lastName}`.trim(),
+          linkTo: `/leads/${id}`,
+        },
+      });
+    }
+
+    // 4. Notify old assignee (if existed and not the performing user)
+    if (existing.assignedToId && existing.assignedToId !== user.id) {
+      await prisma.notification.create({
+        data: {
+          userId: existing.assignedToId,
+          type: 'lead_reassigned',
+          title: 'Lead Reassigned',
+          text: `${existing.firstName} ${existing.lastName} (${existing.company}) has been reassigned to another user by ${user.firstName} ${user.lastName}`.trim(),
+          linkTo: `/leads/${id}`,
+        },
+      });
+    }
   }
 
   return NextResponse.json(updated);
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const userOrRes = await requireAuth();
@@ -200,13 +257,38 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const lead = await prisma.lead.findUnique({ where: { id }, select: { assignedToId: true, campaignId: true } });
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    select: { assignedToId: true, campaignId: true, sequenceId: true },
+  });
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   if (!(await canAccessLead(user, lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  await prisma.lead.delete({ where: { id } });
+  let reason = 'Archived by user';
+  try {
+    const body = await req.json();
+    if (body?.archiveReason) {
+      reason = body.archiveReason;
+    }
+  } catch (_) {
+    // Request has no JSON body, ignore
+  }
+
+  if (lead.sequenceId) {
+    await unenrollLead(id, lead.sequenceId);
+  }
+
+  await prisma.lead.update({
+    where: { id },
+    data: {
+      archivedAt: new Date(),
+      archivedById: user.id,
+      archiveReason: reason,
+    },
+  });
+
   return NextResponse.json({ success: true });
 }

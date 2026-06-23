@@ -476,39 +476,46 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             <>
               <div className="fixed inset-0 z-30" onClick={() => setPersonaOpen(false)} />
               <div role="menu" aria-orientation="vertical" className="absolute right-0 mt-2 w-56 bg-card-bg border border-card-border rounded-xl shadow-xl shadow-black/10 z-40 py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted block">
-                    Simulate Role (Showcase)
-                  </span>
-                  <p className="text-[11px] text-text-secondary leading-normal mt-0.5">
-                    Test how the interface adapts to different access scopes.
-                  </p>
-                </div>
-                {(
-                  [
-                    { role: 'sdr', label: 'SDR View', icon: '👤' },
-                    { role: 'team_lead', label: 'Team Lead View', icon: '🎯' },
-                    { role: 'floor_manager', label: 'Floor Manager View', icon: '🏢' },
-                    { role: 'director', label: 'Director View', icon: '👑' },
-                  ] as const
-                ).map(({ role, label, icon }) => (
-                  <button
-                    key={role}
-                    role="menuitem"
-                    onClick={() => { onRoleChange(role); setPersonaOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
-                      currentRole === role
-                        ? 'text-brand-red font-semibold bg-brand-red/5'
-                        : 'text-text-primary hover:bg-background'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
-                    </span>
-                    {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
-                  </button>
-                ))}
-                <div className="my-1 border-t border-card-border" />
+                {process.env.NODE_ENV !== 'production' && (
+                  <>
+                    <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted block">
+                        Simulate Role (Showcase)
+                      </span>
+                      <p className="text-[11px] text-text-secondary leading-normal mt-0.5">
+                        Test how the interface adapts to different access scopes.
+                      </p>
+                      <p className="text-[9px] text-brand-orange leading-normal mt-1 italic font-medium">
+                        ⚠️ UI simulation only — server permissions unchanged.
+                      </p>
+                    </div>
+                    {(
+                      [
+                        { role: 'sdr', label: 'SDR View', icon: '👤' },
+                        { role: 'team_lead', label: 'Team Lead View', icon: '🎯' },
+                        { role: 'floor_manager', label: 'Floor Manager View', icon: '🏢' },
+                        { role: 'director', label: 'Director View', icon: '👑' },
+                      ] as const
+                    ).map(({ role, label, icon }) => (
+                      <button
+                        key={role}
+                        role="menuitem"
+                        onClick={() => { onRoleChange(role); setPersonaOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
+                          currentRole === role
+                            ? 'text-brand-red font-semibold bg-brand-red/5'
+                            : 'text-text-primary hover:bg-background'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
+                        </span>
+                        {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-card-border" />
+                  </>
+                )}
                 <button
                   role="menuitem"
                   onClick={() => signOut({ callbackUrl: '/login' })}

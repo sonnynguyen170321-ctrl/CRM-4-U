@@ -3,8 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P0 — Workflow correctness (not yet started)
-**Next unchecked task:** `P0.1` — AND-compose the Lead list `where` in `app/api/leads/route.ts` (+ enum validation, tests in `tests/podScoping.test.ts`).
+**Current phase:** P1 — Schema hardening (in progress)
+**Next unchecked task:** `P1.0` — Reconcile drift: migrate already-in-schema `Tenant`/`tenantId`/`AiMemory`; seed `upsert`s default tenant **first**.
 **Blockers:** none.
 
 ## Decisions locked
@@ -15,6 +15,9 @@
 
 ## Progress log
 - 2026-06-23 — Plan authored, verified against codebase, committed. Pinned as primary flow in `CLAUDE.md` / `AGENTS.md` / `.claude/rules/runtime-hardening.md`. No app code changed yet.
+- 2026-06-23 — P0.1: Lead list AND-compose fix already applied to codebase (found during verification). No additional changes needed.
+- 2026-06-23 — P0.2–P0.11: Completed entire workflow correctness phase. Added timezone boundary helper, lead access validations, soft archiving on delete, task completion CAS, and Topbar role fencing. Verified with passing Vitest tests.
+- 2026-06-23 — P2: BullMQ foundation built. Installed `bullmq` + `ioredis`. Created `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`. Created `workers/{index,healthcheck}.ts`. Created `scripts/{worker-dev,worker-start}.cjs`. Updated `package.json` scripts + `.env.example` with `REDIS_URL`.
 
 ## How to resume (any machine)
 1. `git pull`

@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createTaskSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -16,10 +17,14 @@ export async function GET(req: NextRequest) {
   const leadId = searchParams.get('leadId');
   const scopeUserId = searchParams.get('userId');
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 86400000);
-  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  const targetIdForTz = (scopeUserId && scopeUserId !== 'all' && user.role !== 'sdr') ? scopeUserId : user.id;
+  const userTzRecord = await prisma.user.findUnique({
+    where: { id: targetIdForTz },
+    select: { timezone: true },
+  });
+  const tz = userTzRecord?.timezone || 'UTC';
+
+  const { start: todayStart, end: todayEnd, yesterdayStart } = getLocalDayBoundaries(new Date(), tz);
 
   let dateFilter: Record<string, any> = {};
   if (tab === 'today') {

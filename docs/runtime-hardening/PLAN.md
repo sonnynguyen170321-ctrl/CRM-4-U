@@ -71,17 +71,17 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 ## Roadmap (the durable task list)
 
 ### P0 — Workflow correctness (no new infra; Vitest per item)
-- [ ] **P0.1** `app/api/leads/route.ts` — `const where={AND:[roleScope,...clauses]}`; validate `stage`/`priority` enums (no `as any`). Tests: `tests/podScoping.test.ts`. *Accept:* TL/leadgen search/campaignId cannot escape scope.
-- [ ] **P0.2** `sequences/[id]/enroll` — `canAccessLead` + same-tenant + sequence-active before enroll/unenroll.
-- [ ] **P0.3** `activities` POST — `canAccessLead(leadId)` before create; callback task → lead assignee.
-- [ ] **P0.4** `email/send` — lead-access check; `min(1)` subject/body in `sendEmailSchema`; suppression gate after P1.4.
-- [ ] **P0.5** `lib/validation/schemas.ts` — remove `sequenceId`/`sequenceStep`(/`sequenceStatus`) from lead update; forbid create `stage:'sequence_active'`.
-- [ ] **P0.6** Lead PUT stage→`replied`/`meeting_booked`/`won`/`lost` calls `pauseSequence`/`unenrollLead` (`lib/sequences/engine.ts`); idempotent if already paused.
-- [ ] **P0.7** Soft archive: `archivedAt`/`archivedById`/`archiveReason`; DELETE→archive; default lists exclude archived; manager filter to include.
-- [ ] **P0.8** Task completion CAS: `updateMany({where:{id,status:'pending'}})`; already-done→409; email task → `email_task_completed` (not `email_sent`).
-- [ ] **P0.9** Lead reassign moves **pending** tasks to new owner; completed keep old; `lead_reassigned` activity + notify both.
-- [ ] **P0.10** Task day boundaries via `User.timezone` — `lib/dates/timezone.ts` local-day→UTC; manager filter uses target SDR tz. **API-only.**
-- [ ] **P0.11** Fence Topbar role simulation — never authorize from simulated role; prod banner/hide.
+- [x] **P0.1** `app/api/leads/route.ts` — `const where={AND:[roleScope,...clauses]}`; validate `stage`/`priority` enums (no `as any`). Tests: `tests/podScoping.test.ts`. *Accept:* TL/leadgen search/campaignId cannot escape scope. *(Already applied to codebase)*
+- [x] **P0.2** `sequences/[id]/enroll` — `canAccessLead` + same-tenant + sequence-active before enroll/unenroll.
+- [x] **P0.3** `activities` POST — `canAccessLead(leadId)` before create; callback task → lead assignee.
+- [x] **P0.4** `email/send` — lead-access check; `min(1)` subject/body in `sendEmailSchema`; suppression gate after P1.4.
+- [x] **P0.5** `lib/validation/schemas.ts` — remove `sequenceId`/`sequenceStep`(/`sequenceStatus`) from lead update; forbid create `stage:'sequence_active'`.
+- [x] **P0.6** Lead PUT stage→`replied`/`meeting_booked`/`won`/`lost` calls `pauseSequence`/unenrollLead (`lib/sequences/engine.ts`); idempotent if already paused.
+- [x] **P0.7** Soft archive: `archivedAt`/`archivedById`/`archiveReason`; DELETE→archive; default lists exclude archived; manager filter to include.
+- [x] **P0.8** Task completion CAS: `updateMany({where:{id,status:'pending'}})`; already-done→409; email task → `email_task_completed` (not `email_sent`).
+- [x] **P0.9** Lead reassign moves **pending** tasks to new owner; completed keep old; `lead_reassigned` activity + notify both.
+- [x] **P0.10** Task day boundaries via `User.timezone` — `lib/dates/timezone.ts` local-day→UTC; manager filter uses target SDR tz. **API-only.**
+- [x] **P0.11** Fence Topbar role simulation — never authorize from simulated role; prod banner/hide.
 
 ### P1 — Schema hardening (`DIRECT_URL` for migrations)
 - [ ] **P1.0** Reconcile drift: migrate already-in-schema `Tenant`/`tenantId`/`AiMemory`; seed `upsert`s default tenant **first**.
@@ -96,8 +96,9 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [ ] **P1.9** Encrypt `accessToken`/`refreshToken` via `lib/crypto.ts`; backfill; **drop plaintext columns after**; never `select` tokens to UI.
 
 ### P2 — BullMQ foundation
-- [ ] `npm i bullmq ioredis`; create `lib/bullmq/{connection,queues,jobOptions,enqueue,events,types}.ts`, `lib/workflows/*`, `workers/*`, `scripts/*`.
-- [ ] **Workers use `DIRECT_URL`** (TCP). Queues, default job options, JobRun-sync-on-enqueue, `maintenance.healthcheck` smoke.
+- [x] Install `bullmq` + `ioredis`; create `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`, `workers/{index,healthcheck}.ts`, `scripts/{worker-dev,worker-start}.cjs`.
+- [ ] `lib/workflows/*` — workflow definitions for multi-step processes.
+- [ ] **Workers use `DIRECT_URL`** (TCP). Queues, default job options, `maintenance.healthcheck` smoke.
 
 ### P3 — Sequence worker
 - [ ] Jobs `enroll/advance/pause/unenroll/rebuild`; enroll creates `SequenceEnrollment` (one-active via P1.5 index); advance = CAS on `currentStep`; clone-on-edit when active enrollments exist.

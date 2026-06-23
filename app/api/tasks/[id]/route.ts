@@ -46,21 +46,47 @@ export async function PUT(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const updated = await prisma.task.update({
-    where: { id },
-    data: {
-      ...(body.status !== undefined && { status: body.status }),
-      ...(body.dueDate !== undefined && { dueDate: body.dueDate }),
-      ...(body.status === 'completed' && { completedAt: new Date() }),
-      ...(body.notes !== undefined && { notes: body.notes }),
-      ...(body.outcome !== undefined && { outcome: body.outcome }),
-    },
-  });
+  let updated;
+  if (body.status === 'completed' || body.status === 'skipped') {
+    const updateResult = await prisma.task.updateMany({
+      where: { id, status: 'pending' },
+      data: {
+        status: body.status,
+        completedAt: body.status === 'completed' ? new Date() : null,
+        ...(body.dueDate !== undefined && { dueDate: body.dueDate }),
+        ...(body.notes !== undefined && { notes: body.notes }),
+        ...(body.outcome !== undefined && { outcome: body.outcome }),
+      },
+    });
+
+    if (updateResult.count === 0) {
+      const checkTask = await prisma.task.findUnique({ where: { id } });
+      if (!checkTask) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: 'Task is already completed or skipped' }, { status: 409 });
+    }
+
+    updated = await prisma.task.findUnique({
+      where: { id },
+      include: { lead: true },
+    });
+  } else {
+    updated = await prisma.task.update({
+      where: { id },
+      data: {
+        ...(body.dueDate !== undefined && { dueDate: body.dueDate }),
+        ...(body.notes !== undefined && { notes: body.notes }),
+        ...(body.outcome !== undefined && { outcome: body.outcome }),
+      },
+      include: { lead: true },
+    });
+  }
 
   // Auto-log activity when task is completed or skipped
   if (body.status === 'completed' || body.status === 'skipped') {
     const activityTypeMap: Record<string, string> = {
-      email: 'email_sent',
+      email: 'email_task_completed',
       phone: 'call_logged',
       linkedin: 'linkedin_touch',
       whatsapp: 'whatsapp_message',

@@ -77,6 +77,8 @@ enum ActivityType {
   sequence_enrolled
   sequence_completed
   sequence_unenrolled
+  email_task_completed
+  lead_reassigned
 }
 
 enum ClientStatus {
@@ -225,6 +227,9 @@ model Lead {
   updatedAt       DateTime  @updatedAt
   tenantId        String @default("default-tenant")
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  archivedAt      DateTime?
+  archivedById    String?
+  archiveReason   String?
 
   tasks      Task[]
   notes      Note[]
@@ -238,6 +243,7 @@ model Lead {
   @@index([tenantId])
   @@index([campaignId, stage])
   @@index([campaignId, assignedToId])
+  @@index([tenantId, archivedAt])
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────

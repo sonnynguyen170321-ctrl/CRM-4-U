@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/ai/scoring';
 import { parseBody, capLimit } from '@/lib/validation/core';
-import { createLeadSchema } from '@/lib/validation/schemas';
+import { createLeadSchema, leadStage, priority as prioritySchema } from '@/lib/validation/schemas';
+import { buildLeadListWhere } from '@/lib/leads/listQuery';
 import { handleApiError } from '@/lib/api/errors';
 
 export async function GET(req: NextRequest) {
@@ -13,9 +15,9 @@ export async function GET(req: NextRequest) {
   const user = userOrRes as SessionUser;
 
   const { searchParams } = new URL(req.url);
-  const search = searchParams.get('search') || '';
-  const stage = searchParams.get('stage') || undefined;
-  const priority = searchParams.get('priority') || undefined;
+  const search = searchParams.get('search') || undefined;
+  const stageRaw = searchParams.get('stage') || undefined;
+  const priorityRaw = searchParams.get('priority') || undefined;
   const assignedTo = searchParams.get('assignedTo') || undefined;
   const campaignId = searchParams.get('campaignId') || undefined;
   const source = searchParams.get('source') || undefined;
@@ -23,39 +25,39 @@ export async function GET(req: NextRequest) {
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
   const limit = capLimit(searchParams.get('limit'), 200, 500);
+  const archivedRaw = searchParams.get('archived') === 'true';
+  const includeArchived = archivedRaw && user.role !== 'sdr';
+
+  // Validate enum filters up front — reject bad values instead of casting blindly.
+  const stageCheck = stageRaw ? leadStage.safeParse(stageRaw) : null;
+  if (stageCheck && !stageCheck.success) {
+    return NextResponse.json({ error: 'Invalid stage filter' }, { status: 400 });
+  }
+  const priorityCheck = priorityRaw ? prioritySchema.safeParse(priorityRaw) : null;
+  if (priorityCheck && !priorityCheck.success) {
+    return NextResponse.json({ error: 'Invalid priority filter' }, { status: 400 });
+  }
 
   // Scope: user axis for SDR/TL/FM/Director, account axis for leadgen.
   // Director / leadgen-manager → all; leadgen-member → assigned campaigns only.
-  const roleScope = await getLeadWhereScope(user);
+  // Composed with AND so no filter/search can override it (BUG-001).
+  const roleScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
 
   try {
     const leads = await prisma.lead.findMany({
       take: limit,
-      where: {
-        ...roleScope,
-        ...(stage ? { stage: stage as any } : {}),
-        ...(priority ? { priority: priority as any } : {}),
-        ...(assignedTo ? { assignedToId: assignedTo } : {}),
-        ...(campaignId ? { campaignId } : {}),
-        ...(source ? { source: { contains: source, mode: 'insensitive' as const } } : {}),
-        ...(tag ? { tags: { has: tag } } : {}),
-        ...(dateFrom || dateTo ? {
-          createdAt: {
-            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-            ...(dateTo ? { lte: new Date(dateTo + 'T23:59:59Z') } : {}),
-          },
-        } : {}),
-        ...(search
-          ? {
-              OR: [
-                { firstName: { contains: search, mode: 'insensitive' } },
-                { lastName: { contains: search, mode: 'insensitive' } },
-                { company: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
+      where: buildLeadListWhere(roleScope, {
+        stage: stageCheck?.success ? stageCheck.data : undefined,
+        priority: priorityCheck?.success ? priorityCheck.data : undefined,
+        assignedTo,
+        campaignId,
+        source,
+        tag,
+        dateFrom,
+        dateTo,
+        search,
+        includeArchived,
+      }),
       include: {
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         campaign: { select: { id: true, name: true } },

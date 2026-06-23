@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { EmailService } from '@/lib/email/EmailService';
 import { renderTemplate } from '@/lib/templates/render';
@@ -15,6 +15,17 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, sendEmailSchema);
   if (parsed.error) return parsed.error;
   const body = parsed.data;
+
+  if (body.leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { assignedToId: true, campaignId: true, tenantId: true },
+    });
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   const account = await prisma.emailAccount.findFirst({
     where: { id: body.accountId, userId: user.id },
@@ -47,6 +58,13 @@ export async function POST(req: NextRequest) {
       text = renderTemplate(text, lead, user);
       html = html ? renderTemplate(html, lead, user) : undefined;
     }
+  }
+
+  if (!subject.trim()) {
+    return NextResponse.json({ error: 'Subject cannot be empty' }, { status: 400 });
+  }
+  if (!text.trim()) {
+    return NextResponse.json({ error: 'Body cannot be empty' }, { status: 400 });
   }
 
   try {
