@@ -17,6 +17,7 @@ import {
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
+import MailComposerModal from '@/components/MailComposerModal';
 
 interface LeadDetail {
   id: string;
@@ -104,6 +105,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [newReminderText, setNewReminderText] = useState('');
+  const [showComposer, setShowComposer] = useState(false);
   const [newReminderDate, setNewReminderDate] = useState('');
   const [savingReminder, setSavingReminder] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -127,7 +129,6 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   useEffect(() => {
     if (!leadId) {
       setLead(null);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__crm_lead_context = null;
       return;
     }
@@ -145,7 +146,6 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           const daysSince = data.lastContactedAt
             ? Math.floor((Date.now() - new Date(data.lastContactedAt).getTime()) / 86400000)
             : null;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).__crm_lead_context = {
             leadId: data.id,
             leadName: `${data.firstName} ${data.lastName}`,
@@ -183,7 +183,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         .then((data) => setUsers(Array.isArray(data) ? data : []))
         .catch(() => {});
     }
-  }, [leadId, showToast, users.length]);
+  }, [leadId, showToast, users.length, isManager]);
 
   const timelineItems = React.useMemo(() => {
     interface TimelineItem {
@@ -689,13 +689,15 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           {activeTab === 'info' && (
             <div className="space-y-5">
               <div className="grid grid-cols-4 gap-2.5">
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 text-blue-500 transition-all text-center gap-1"
+                <button
+                  type="button"
+                  onClick={() => setShowComposer(true)}
+                  aria-label={`Compose email to ${lead.firstName} ${lead.lastName}`}
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 text-blue-500 transition-all text-center gap-1 focus-ring"
                 >
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-4 h-4" aria-hidden="true" />
                   <span className="text-[10px] font-medium font-mono">Email</span>
-                </a>
+                </button>
                 <button
                   type="button"
                   disabled={!lead.phone}
@@ -1491,6 +1493,30 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
             </div>
           </div>
         </div>
+      )}
+
+      {showComposer && lead && (
+        <MailComposerModal
+          lead={{
+            id: lead.id,
+            firstName: lead.firstName,
+            lastName: lead.lastName,
+            company: lead.company,
+            title: lead.title ?? '',
+            email: lead.email,
+            phone: lead.phone ?? undefined,
+          }}
+          onClose={() => setShowComposer(false)}
+          onSent={() => {
+            showToast('Email sent', 'success');
+            if (leadId) {
+              fetch(`/api/leads/${leadId}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => { if (data) setLead(data); })
+                .catch(() => {});
+            }
+          }}
+        />
       )}
     </div>
   );

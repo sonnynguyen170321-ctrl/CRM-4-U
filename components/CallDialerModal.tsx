@@ -59,7 +59,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialer Panel container */}
-      <div className="bg-card-bg border border-card-border rounded-3xl shadow-xl w-full max-w-sm relative z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
+      <div role="dialog" aria-modal="true" aria-label="Call dialer" className="bg-card-bg border border-card-border rounded-3xl shadow-xl w-full max-w-sm relative z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col">
         
         {/* Call Status Section */}
         <div className="bg-gradient-to-b from-brand-dark/40 to-background p-6 flex flex-col items-center justify-center text-center border-b border-card-border/30">

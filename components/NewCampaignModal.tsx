@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeClose } from '@/hooks/useEscapeClose';
 import { useToast } from '@/context/ToastContext';
 
 interface Client {
@@ -17,6 +18,7 @@ interface Props {
 
 export default function NewCampaignModal({ onClose, onSuccess }: Props) {
   const { showToast } = useToast();
+  useEscapeClose(onClose);
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientName, setNewClientName] = useState('');
@@ -82,7 +84,7 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
     <>
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto">
+        <div role="dialog" aria-modal="true" aria-label="New campaign" className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-card-border">
             <div>

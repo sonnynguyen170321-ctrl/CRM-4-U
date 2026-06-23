@@ -142,7 +142,6 @@ export default function DashboardPage() {
     setActivities(actsArr);
 
     // Expose live stats for the AI Assistant widget
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__crm_sdr_stats = {
       overdueTasks: overdueArr.length,
       todayTasks: todayArr.length,

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Bell } from 'lucide-react';
+import { useEscapeClose } from '@/hooks/useEscapeClose';
 import { useToast } from '@/context/ToastContext';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export default function NewReminderModal({ onClose, onSuccess }: Props) {
   const { showToast } = useToast();
+  useEscapeClose(onClose);
   const [saving, setSaving] = useState(false);
   const [text, setText] = useState('');
   const [dueAt, setDueAt] = useState('');
@@ -42,7 +44,7 @@ export default function NewReminderModal({ onClose, onSuccess }: Props) {
     <>
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-xs pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div role="dialog" aria-modal="true" aria-label="New reminder" className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-xs pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
           <div className="flex items-center justify-between px-5 py-4 border-b border-card-border">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-brand-gold" />

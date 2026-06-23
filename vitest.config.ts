@@ -8,5 +8,9 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    // DB-context suites seed a tenant in beforeAll; a cold Neon connection can exceed
+    // the 10s default, surfacing as a CI "failure". Give hooks/tests more headroom.
+    hookTimeout: 30000,
+    testTimeout: 20000,
   },
 });

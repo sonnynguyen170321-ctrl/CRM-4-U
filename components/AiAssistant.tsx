@@ -279,6 +279,9 @@ export default function AiAssistant() {
     }
 
     setTimeout(() => inputRef.current?.focus(), 100);
+    // startOnboarding is declared later in the component (TDZ) and is stable for this
+    // handler's purpose; including it would crash the dep array. Intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setupComplete, messages.length, fireMorningBriefing]);
 
   // Onboarding intro shown on first question — uses firstName so defined inside component
