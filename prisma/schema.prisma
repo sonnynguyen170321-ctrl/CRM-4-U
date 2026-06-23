@@ -594,6 +594,9 @@ model SuppressionEntry {
   @@index([domain])
   @@index([campaignId])
   @@index([tenantId])
+  @@unique([tenantId, email, campaignId])
+  @@unique([tenantId, domain, campaignId])
+  @@unique([tenantId, company, campaignId])
 }
 
 // ─── Sequence Enrollments ────────────────────────────────────────────────────
@@ -611,7 +614,6 @@ model SequenceEnrollment {
   tenantId     String
   tenant       Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([leadId, sequenceId])
   @@index([leadId])
   @@index([sequenceId])
   @@index([status])
