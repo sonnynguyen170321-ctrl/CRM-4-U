@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { enqueue } from '@/lib/bullmq/enqueue';
-import { JobType, type EmailSendPayload } from '@/lib/bullmq';
+import { JobType, type EmailSendPayload, type EmailApplyReplyPayload, type EmailApplyBouncePayload } from '@/lib/bullmq';
 import { generateIdempotencyKey } from '@/lib/bullmq/jobOptions';
 
 export async function createOutboundMessage(params: {
@@ -44,4 +44,18 @@ export async function enqueueEmailSyncWorkflow(
   tenantId: string
 ): Promise<string> {
   return enqueue(JobType.EMAIL_SYNC, { accountId }, { tenantId });
+}
+
+export async function enqueueEmailApplyReplyWorkflow(
+  payload: EmailApplyReplyPayload,
+  tenantId: string
+): Promise<string> {
+  return enqueue(JobType.EMAIL_APPLY_REPLY, payload, { tenantId });
+}
+
+export async function enqueueEmailApplyBounceWorkflow(
+  payload: EmailApplyBouncePayload,
+  tenantId: string
+): Promise<string> {
+  return enqueue(JobType.EMAIL_APPLY_BOUNCE, payload, { tenantId });
 }

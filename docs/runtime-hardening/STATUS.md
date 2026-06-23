@@ -3,7 +3,7 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P7 — Reminder / notification / maintenance — **DONE**
+**Current phase:** P6 — Sync / reply / bounce worker — **DONE**
 **Next unchecked task:** `P5` — Import worker (`import.parse/chunk/commit`; 10k rows non-blocking; row-level errors).
 **Blockers:** none.
 
@@ -35,6 +35,7 @@
 - 2026-06-23 — **Audit: P1.8 migration gap closed** — Created migration `20260623080000_add_sequencestep_unique_order_per_sequence`.
 - 2026-06-23 — **P4 Email worker** ✓ — Created `workers/email.ts` with OutboundMessage lifecycle, atomic quota with date-aware reset, provider idempotency reconciliation, suppression gate. Gmail adapter returns provider message ID for idempotency storage. Imap adapter returns nodemailer messageId. Three send paths (API route, smartSend cron, Inngest) all now create OutboundMessage + enqueue via `enqueueEmailSendWorkflow`. Email worker registered in `workers/index.ts`. 7 Vitest unit tests pass (110 total).
 - 2026-06-23 — **P7 Notification/Maintenance worker** ✓ — Created `workers/notification.ts` (reminder.due/digest.daily) and `workers/maintenance.ts` (5 repair types: orphan-tasks, stale-sending, stuck-running, missing-delayed, reassignment-drift). Both registered in `workers/index.ts`. Notification worker runs on SYNC queue, maintenance on MAINTENANCE queue. 19 new Vitest unit tests pass across 2 test files (129 total).
+- 2026-06-23 — **P6 Sync/reply/bounce worker** ✓ — Created `workers/sync.ts` with `handleEmailSync` (fetch + classify + apply inline), `handleApplyReply` (idempotent on lead state), `handleApplyBounce` (hard→SuppressionEntry, soft→no suppression). Added `providerMessageId` to `InboxMessage` interface; updated Gmail/Outlook/Imap adapters. Fixed `jobQueue()` routing: `email.sync/apply-reply/apply-bounce` → SYNC queue. Updated inbox-sync cron to enqueue BullMQ jobs. 16 new Vitest tests pass (141 total).
 
 ## How to resume (any machine)
 1. `git pull`

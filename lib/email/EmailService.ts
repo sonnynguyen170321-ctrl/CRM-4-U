@@ -15,6 +15,8 @@ export interface SendEmailOptions {
 
 /** A message fetched from a connected inbox (metadata only — no body). */
 export interface InboxMessage {
+  /** Provider's unique message ID (Gmail msg.id, Graph message.id, IMAP UID). */
+  providerMessageId: string;
   fromEmail: string;
   subject: string;
   date: Date;

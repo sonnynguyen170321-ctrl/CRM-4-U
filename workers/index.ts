@@ -6,6 +6,7 @@ import { createSequenceWorker } from './sequence';
 import { createEmailWorker } from './email';
 import { createNotificationWorker } from './notification';
 import { createMaintenanceWorker } from './maintenance';
+import { createSyncWorker } from './sync';
 
 const workers: Worker[] = [];
 
@@ -29,6 +30,10 @@ function registerWorkers(): void {
   const maintenance = createMaintenanceWorker();
   workers.push(maintenance);
   console.log('[worker] registered: maintenance');
+
+  const sync = createSyncWorker();
+  workers.push(sync);
+  console.log('[worker] registered: sync');
 }
 
 function attachSignals(): void {

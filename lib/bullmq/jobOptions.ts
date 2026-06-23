@@ -57,6 +57,19 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     backoff: { type: 'fixed', delay: 10000 },
     timeout: 120000,
   },
+  [JobType.EMAIL_SYNC]: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+    timeout: 120000,
+  },
+  [JobType.EMAIL_APPLY_REPLY]: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 3000 },
+  },
+  [JobType.EMAIL_APPLY_BOUNCE]: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 3000 },
+  },
   [JobType.REMINDER_DUE]: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },

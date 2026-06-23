@@ -71,6 +71,7 @@ export class ImapAdapter implements EmailAdapter {
           for await (const msg of client.fetch(recent, { envelope: true })) {
             const from = msg.envelope?.from?.[0];
             messages.push({
+              providerMessageId: String(msg.uid),
               fromEmail: (from?.address ?? '').toLowerCase(),
               subject: msg.envelope?.subject ?? '',
               date: msg.envelope?.date ?? new Date(),

@@ -133,6 +133,7 @@ export class GmailAdapter implements EmailAdapter {
       const fromRaw = header('From');
       const emailMatch = fromRaw.match(/<([^>]+)>/);
       messages.push({
+        providerMessageId: ref.id!,
         fromEmail: (emailMatch ? emailMatch[1] : fromRaw).trim().toLowerCase(),
         subject: header('Subject'),
         date: header('Date') ? new Date(header('Date')) : new Date(Number(msg.data.internalDate)),

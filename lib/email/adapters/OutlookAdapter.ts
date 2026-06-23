@@ -136,6 +136,7 @@ export class OutlookAdapter implements EmailAdapter {
 
     const data = await res.json();
     return ((data.value ?? []) as any[]).map((m) => ({
+      providerMessageId: m.id,
       fromEmail: (m.from?.emailAddress?.address ?? '').toLowerCase(),
       subject: m.subject ?? '',
       date: new Date(m.receivedDateTime),

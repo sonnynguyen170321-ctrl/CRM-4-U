@@ -106,13 +106,13 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 ### P4 — Email worker (single send path)
 - [x] All sends → `OutboundMessage` + `email.send`. Remove inline send + smartSend + Inngest send.
 - [x] Provider idempotency (`sending`-on-retry ⇒ reconcile not resend); **one** atomic quota increment with date-aware reset; suppression gate.
-- [ ] Hard-vs-soft bounce handling (deferred to P6).
+- [x] Hard-vs-soft bounce handling (deferred to P6).
 
 ### P5 — Import worker
 - [ ] `import.parse/chunk/commit`; scoped dedupe (`duplicate_exists_outside_visible_scope`, no ids leaked); 10k rows non-blocking; row-level errors.
 
 ### P6 — Sync / reply / bounce worker
-- [ ] Port `inbox-sync` into `sync.worker`; `apply-reply`/`apply-bounce` idempotent on provider `messageId`; hard-bounce → `SuppressionEntry`; reply → `sequence.pause`.
+- [x] Port `inbox-sync` into `sync.worker`; `apply-reply`/`apply-bounce` idempotent on provider `messageId`; hard-bounce → `SuppressionEntry`; reply → `sequence.pause`.
 
 ### P7 — Reminder / notification / maintenance
 - [x] `reminder.due`, `digest.daily`, repair jobs (orphans, stale `sending`, stuck `running`, missing delayed jobs, reassignment drift) — idempotent + audit.

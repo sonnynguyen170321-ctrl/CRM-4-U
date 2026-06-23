@@ -133,7 +133,8 @@ export type JobPayload = {
 
 export function jobQueue(jobType: JobType): QueueName {
   if (jobType.startsWith('sequence.')) return QUEUES.SEQUENCE;
-  if (jobType.startsWith('email.')) return QUEUES.EMAIL;
+  if (jobType === JobType.EMAIL_SEND) return QUEUES.EMAIL;
+  if (jobType.startsWith('email.')) return QUEUES.SYNC;
   if (jobType.startsWith('import.')) return QUEUES.IMPORT;
   if (jobType.startsWith('reminder.') || jobType.startsWith('digest.')) return QUEUES.SYNC;
   if (jobType.startsWith('maintenance.')) return QUEUES.MAINTENANCE;
