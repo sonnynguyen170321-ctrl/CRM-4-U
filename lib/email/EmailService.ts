@@ -23,7 +23,8 @@ export interface InboxMessage {
 }
 
 export interface EmailAdapter {
-  send(options: SendEmailOptions): Promise<void>;
+  /** Send an email. Returns the provider's message ID if available (for reconciliation). */
+  send(options: SendEmailOptions): Promise<string | undefined>;
   /** Fetch inbox messages received since `since`. Optional — not all adapters sync. */
   fetchMessagesSince?(since: Date): Promise<InboxMessage[]>;
 }
@@ -39,7 +40,7 @@ export class EmailService {
     this.adapter = adapter;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     return this.adapter.send(options);
   }
 

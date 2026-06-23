@@ -120,8 +120,8 @@ export const updateTemplateSchema = createTemplateSchema.partial();
 export const sendEmailSchema = z.object({
   accountId: id,
   to: z.string().email().max(320),
-  subject: z.string().max(998).optional(),
-  body: longText.optional(),
+  subject: z.string().min(1).max(998).optional(),
+  body: longText.min(1).optional(),
   text: longText.optional(),
   html: longText.optional(),
   replyTo: z.string().email().max(320).optional(),

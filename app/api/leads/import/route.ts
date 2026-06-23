@@ -27,6 +27,7 @@ interface ImportBody {
   /** Per-row duplicate handling, keyed by 1-based row number (SKILL.md §24). */
   resolutions?: Record<string, Resolution>;
   defaultResolution?: Resolution;
+  filename?: string;
 }
 
 interface DuplicateInfo {
@@ -181,6 +182,35 @@ export async function POST(req: NextRequest) {
   const defaultResolution: Resolution = body.defaultResolution ?? 'skip';
   const resolutions = body.resolutions ?? {};
 
+  const tenantId = user.tenantId || 'default-tenant';
+
+  // 1. Create the persistent ImportBatch
+  const importBatch = await prisma.importBatch.create({
+    data: {
+      campaignId,
+      userId: user.id,
+      filename: body.filename || 'import.csv',
+      totalRows: body.leads.length,
+      status: 'committing',
+      tenantId,
+    },
+  });
+
+  // Create ImportRows for validation errors
+  for (const errRow of errorRows) {
+    const originalRow = body.leads[errRow.row - 1];
+    await prisma.importRow.create({
+      data: {
+        batchId: importBatch.id,
+        rowIndex: errRow.row,
+        data: originalRow as any,
+        errors: { reason: errRow.reason },
+        status: 'error',
+        tenantId,
+      },
+    });
+  }
+
   let imported = 0;
   let updated = 0;
   let skipped = 0;
@@ -214,6 +244,16 @@ export async function POST(req: NextRequest) {
 
     if (email && seenEmails.has(email.toLowerCase())) {
       skipped++;
+      await prisma.importRow.create({
+        data: {
+          batchId: importBatch.id,
+          rowIndex: rowNum,
+          data: row as any,
+          errors: { reason: 'Duplicate email in this batch' },
+          status: 'error',
+          tenantId,
+        },
+      });
       return;
     }
 
@@ -233,6 +273,17 @@ export async function POST(req: NextRequest) {
           source: 'csv-import',
           tags: [],
           ...(sequence ? { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' as const } : {}),
+        },
+      });
+
+      await prisma.importRow.create({
+        data: {
+          batchId: importBatch.id,
+          rowIndex: rowNum,
+          data: row as any,
+          status: 'imported',
+          leadId: createdLead.id,
+          tenantId,
         },
       });
 
@@ -264,6 +315,17 @@ export async function POST(req: NextRequest) {
       console.error(`[leads/import] row ${rowNum} failed:`, err);
       importErrors.push({ row: rowNum, reason: 'Database error while creating lead' });
       skipped++;
+
+      await prisma.importRow.create({
+        data: {
+          batchId: importBatch.id,
+          rowIndex: rowNum,
+          data: row as any,
+          errors: { reason: 'Database error while creating lead' },
+          status: 'error',
+          tenantId,
+        },
+      });
     }
   };
 
@@ -277,6 +339,16 @@ export async function POST(req: NextRequest) {
     const resolution = resolutions[String(dup.row)] ?? defaultResolution;
     if (resolution === 'skip') {
       skipped++;
+      await prisma.importRow.create({
+        data: {
+          batchId: importBatch.id,
+          rowIndex: dup.row,
+          data: dup.incoming as any,
+          errors: { reason: `Duplicate skipped (${dup.matchType} match)` },
+          status: 'error',
+          tenantId,
+        },
+      });
       continue;
     }
     if (resolution === 'import') {
@@ -288,6 +360,16 @@ export async function POST(req: NextRequest) {
       const existing = existingLeads.find((l) => l.id === dup.existingLeadId);
       if (!existing) {
         skipped++;
+        await prisma.importRow.create({
+          data: {
+            batchId: importBatch.id,
+            rowIndex: dup.row,
+            data: dup.incoming as any,
+            errors: { reason: 'Matched existing lead not found during update' },
+            status: 'error',
+            tenantId,
+          },
+        });
         continue;
       }
       const fill: Record<string, string> = {};
@@ -295,16 +377,62 @@ export async function POST(req: NextRequest) {
       if (!existing.phone && dup.incoming.phone?.trim()) fill.phone = dup.incoming.phone.trim();
       if (!existing.email && dup.incoming.email?.trim()) fill.email = dup.incoming.email.trim();
       if (Object.keys(fill).length > 0) {
-        await prisma.lead.update({ where: { id: dup.existingLeadId }, data: fill });
+        const updatedLead = await prisma.lead.update({ where: { id: dup.existingLeadId }, data: fill });
         updated++;
+
+        await prisma.importRow.create({
+          data: {
+            batchId: importBatch.id,
+            rowIndex: dup.row,
+            data: dup.incoming as any,
+            status: 'imported',
+            leadId: updatedLead.id,
+            tenantId,
+          },
+        });
       } else {
         skipped++;
+        await prisma.importRow.create({
+          data: {
+            batchId: importBatch.id,
+            rowIndex: dup.row,
+            data: dup.incoming as any,
+            errors: { reason: 'Duplicate skipped (no empty fields to fill)' },
+            status: 'error',
+            tenantId,
+          },
+        });
       }
     } catch (err) {
       console.error(`[leads/import] update for row ${dup.row} failed:`, err);
       importErrors.push({ row: dup.row, reason: 'Database error while updating existing lead' });
       skipped++;
+
+      await prisma.importRow.create({
+        data: {
+          batchId: importBatch.id,
+          rowIndex: dup.row,
+          data: dup.incoming as any,
+          errors: { reason: 'Database error while updating existing lead' },
+          status: 'error',
+          tenantId,
+        },
+      });
     }
+  }
+
+  // Update final status of the ImportBatch
+  try {
+    await prisma.importBatch.update({
+      where: { id: importBatch.id },
+      data: {
+        status: 'committed',
+        parsedRows: imported + updated,
+        errorRows: skipped + errorRows.length,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to update import batch status:', err);
   }
 
   return NextResponse.json({

@@ -1,5 +1,10 @@
+import { createHash } from 'crypto';
 import type { JobsOptions } from 'bullmq';
 import { JobType } from './types';
+
+export function generateIdempotencyKey(leadId: string, accountId: string, subject: string): string {
+  return createHash('sha256').update(`${leadId}:${accountId}:${subject}`).digest('hex').slice(0, 64);
+}
 
 export const DEFAULT_JOB_OPTIONS: JobsOptions = {
   attempts: 3,
@@ -51,5 +56,14 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     attempts: 2,
     backoff: { type: 'fixed', delay: 10000 },
     timeout: 120000,
+  },
+  [JobType.REMINDER_DUE]: {
+    attempts: 2,
+    backoff: { type: 'fixed', delay: 5000 },
+  },
+  [JobType.DIGEST_DAILY]: {
+    attempts: 1,
+    removeOnComplete: { age: 86400, count: 100 },
+    removeOnFail: { age: 86400 * 3, count: 50 },
   },
 };

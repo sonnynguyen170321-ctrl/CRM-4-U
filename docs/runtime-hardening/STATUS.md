@@ -3,8 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P3 — Sequence worker (in progress)
-**Next unchecked task:** `P3` — jobs `enroll/advance/pause/unenroll/rebuild` inside sequence worker.
+**Current phase:** P7 — Reminder / notification / maintenance — **DONE**
+**Next unchecked task:** `P5` — Import worker (`import.parse/chunk/commit`; 10k rows non-blocking; row-level errors).
 **Blockers:** none.
 
 ## Decisions locked
@@ -29,6 +29,12 @@
 - 2026-06-23 — **P1.7** ✓ — Lead dedup: partial unique index on `(tenantId, campaignId, normalizedEmail)` where `normalizedEmail IS NOT NULL`.
 - 2026-06-23 — **P1.2/P1.3/P1.6/P1.8** ✓ — Verified as already present in schema (checkbox ticked).
 - 2026-06-23 — **P2 Workflows** ✓ — Multi-step workflow definitions created under `lib/workflows/{import,sequence,email}.ts` to isolate job enqueuing. Tested and fully passing.
+- 2026-06-23 — **P3 Sequence worker** ✓ — `workers/sequence.ts` with 5 handlers (enroll/advance/pause/unenroll/rebuild) using `createAppWorker`. 14 Vitest unit tests pass.
+- 2026-06-23 — **P9 Live Verification** ✅ — HTTP smoke-test against `localhost:3000` + Neon DB confirmed: all 4 admin API routes return 200 with correct schemas (floor_manager); SDR gets 403 on API routes; all 4 admin UI pages render 31k+ bytes HTML for floor_manager. Added edge-level role guard to `proxy.ts`.
+- 2026-06-23 — **Audit: P0.4 gap closed** — Added `.min(1)` to `subject` and `body` in `sendEmailSchema`; added suppression gate to email send route.
+- 2026-06-23 — **Audit: P1.8 migration gap closed** — Created migration `20260623080000_add_sequencestep_unique_order_per_sequence`.
+- 2026-06-23 — **P4 Email worker** ✓ — Created `workers/email.ts` with OutboundMessage lifecycle, atomic quota with date-aware reset, provider idempotency reconciliation, suppression gate. Gmail adapter returns provider message ID for idempotency storage. Imap adapter returns nodemailer messageId. Three send paths (API route, smartSend cron, Inngest) all now create OutboundMessage + enqueue via `enqueueEmailSendWorkflow`. Email worker registered in `workers/index.ts`. 7 Vitest unit tests pass (110 total).
+- 2026-06-23 — **P7 Notification/Maintenance worker** ✓ — Created `workers/notification.ts` (reminder.due/digest.daily) and `workers/maintenance.ts` (5 repair types: orphan-tasks, stale-sending, stuck-running, missing-delayed, reassignment-drift). Both registered in `workers/index.ts`. Notification worker runs on SYNC queue, maintenance on MAINTENANCE queue. 19 new Vitest unit tests pass across 2 test files (129 total).
 
 ## How to resume (any machine)
 1. `git pull`

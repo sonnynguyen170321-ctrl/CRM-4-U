@@ -46,6 +46,15 @@ describe('sendEmailSchema', () => {
     expect(sendEmailSchema.safeParse({ accountId: 'a1', to: 'nope' }).success).toBe(false);
     expect(sendEmailSchema.safeParse({ to: 'x@y.com' }).success).toBe(false);
   });
+
+  it('rejects empty subject and body', () => {
+    expect(sendEmailSchema.safeParse({ accountId: 'a1', to: 'x@y.com', subject: '' }).success).toBe(false);
+    expect(sendEmailSchema.safeParse({ accountId: 'a1', to: 'x@y.com', body: '' }).success).toBe(false);
+  });
+
+  it('accepts omitted subject and body (optional fields)', () => {
+    expect(sendEmailSchema.safeParse({ accountId: 'a1', to: 'x@y.com' }).success).toBe(true);
+  });
 });
 
 describe('createSequenceSchema', () => {

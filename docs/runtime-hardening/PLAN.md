@@ -101,11 +101,12 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] **Workers use `DIRECT_URL`** (TCP). Queues, default job options, `maintenance.healthcheck` smoke.
 
 ### P3 — Sequence worker
-- [ ] Jobs `enroll/advance/pause/unenroll/rebuild`; enroll creates `SequenceEnrollment` (one-active via P1.5 index); advance = CAS on `currentStep`; clone-on-edit when active enrollments exist.
+- [x] Jobs `enroll/advance/pause/unenroll/rebuild`; enroll creates `SequenceEnrollment` (one-active via P1.5 index); advance = CAS on `currentStep`; clone-on-edit when active enrollments exist.
 
 ### P4 — Email worker (single send path)
-- [ ] All sends → `OutboundMessage` + `email.send`. Remove inline send + smartSend + Inngest send.
-- [ ] Provider idempotency before send; `sending`-on-retry ⇒ reconcile not resend; **one** atomic quota increment with date-aware reset; suppression gate; hard-vs-soft bounce.
+- [x] All sends → `OutboundMessage` + `email.send`. Remove inline send + smartSend + Inngest send.
+- [x] Provider idempotency (`sending`-on-retry ⇒ reconcile not resend); **one** atomic quota increment with date-aware reset; suppression gate.
+- [ ] Hard-vs-soft bounce handling (deferred to P6).
 
 ### P5 — Import worker
 - [ ] `import.parse/chunk/commit`; scoped dedupe (`duplicate_exists_outside_visible_scope`, no ids leaked); 10k rows non-blocking; row-level errors.
@@ -114,13 +115,13 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [ ] Port `inbox-sync` into `sync.worker`; `apply-reply`/`apply-bounce` idempotent on provider `messageId`; hard-bounce → `SuppressionEntry`; reply → `sequence.pause`.
 
 ### P7 — Reminder / notification / maintenance
-- [ ] `reminder.due`, `digest.daily`, repair jobs (orphans, stale `sending`, stuck `running`, missing delayed jobs, reassignment drift) — idempotent + audit.
+- [x] `reminder.due`, `digest.daily`, repair jobs (orphans, stale `sending`, stuck `running`, missing delayed jobs, reassignment drift) — idempotent + audit.
 
 ### P8 — (optional) Premium data model
 - [ ] Split Lead → Account/Contact/LeadAssignment; rename AI score → `engagementScore`/`crmPriorityScore`.
 
 ### P9 — UI wiring (no demo/fake state)
-- [ ] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.
+- [x] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.
 
 ### P10 — Deployment (the runtime fork)
 - [ ] Managed Redis (Upstash/etc); separate always-on worker host (Railway/Render/Fly/VM) running `workers/index.ts`; web stays on Vercel. Package scripts; `EMAIL_SEND_DRY_RUN=true` until proven.

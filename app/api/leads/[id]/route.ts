@@ -37,6 +37,13 @@ export async function GET(
         where: { isDismissed: false },
         orderBy: { dueAt: 'asc' },
       },
+      sequenceEnrollments: {
+        orderBy: { startedAt: 'desc' },
+        include: { sequence: { select: { name: true } } },
+      },
+      outboundMessages: {
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
 

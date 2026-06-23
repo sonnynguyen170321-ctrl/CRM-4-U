@@ -16,6 +16,7 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
@@ -56,6 +57,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     : [
         { name: 'Dashboard', href: '/', icon: LayoutDashboard },
         ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
+        ...(userRole === 'director' || userRole === 'floor_manager' ? [{ name: 'Admin', href: '/admin/jobs', icon: Shield }] : []),
         { name: 'Leads', href: '/leads', icon: Users },
         { name: 'Sequences', href: '/sequences', icon: Repeat },
         { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },

@@ -247,13 +247,28 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       });
     });
 
+    if (lead && (lead as any).outboundMessages) {
+      ((lead as any).outboundMessages as any[]).forEach((m) => {
+        list.push({
+          id: m.id,
+          date: m.sentAt || m.createdAt,
+          type: 'activity',
+          title: `Outbound Email: ${m.subject || '— no subject —'}`,
+          description: `To: ${m.to} · Status: ${m.status.toUpperCase()}${
+            m.errorMessage ? ` · Error: ${m.errorMessage}` : ''
+          }${m.body ? `\n\n${m.body}` : ''}`,
+          channel: 'email',
+        });
+      });
+    }
+
     return list.sort((a, b) => {
       const aPinned = a.type === 'note' && a.isPinned;
       const bPinned = b.type === 'note' && b.isPinned;
       if (bPinned !== aPinned) return bPinned ? 1 : -1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
-  }, [notes, tasks, adHocActivities]);
+  }, [notes, tasks, adHocActivities, lead]);
 
   if (!leadId) return null;
 
@@ -1301,6 +1316,39 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-background/30 border border-card-border text-xs text-text-muted">
                   <Repeat className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                   <span>No active sequence. Enroll below.</span>
+                </div>
+              )}
+
+              {/* Enrollment History */}
+              {(lead as any).sequenceEnrollments && ((lead as any).sequenceEnrollments as any[]).length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
+                    Enrollment History
+                  </h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-4">
+                    {((lead as any).sequenceEnrollments as any[]).map((enr) => (
+                      <div key={enr.id} className="flex justify-between items-center p-2.5 bg-background/30 border border-card-border rounded-xl text-xs font-sans">
+                        <div>
+                          <p className="font-semibold text-text-primary">{enr.sequence?.name || 'Unknown Sequence'}</p>
+                          <p className="text-[9px] text-text-muted font-mono mt-0.5">
+                            Started: {new Date(enr.startedAt).toLocaleDateString()}{' '}
+                            {enr.completedAt ? `· Ended: ${new Date(enr.completedAt).toLocaleDateString()}` : ''}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border font-mono capitalize ${
+                          enr.status === 'active'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : enr.status === 'paused'
+                            ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/20'
+                            : enr.status === 'completed'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-card-border text-text-muted'
+                        }`}>
+                          {enr.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

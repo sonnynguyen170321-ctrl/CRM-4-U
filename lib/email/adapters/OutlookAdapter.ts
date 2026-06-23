@@ -109,6 +109,7 @@ export class OutlookAdapter implements EmailAdapter {
       const err = await res.json();
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
+    // Graph sendMail returns 202 Accepted with no body — no message ID available for reconciliation.
   }
 
   /**

@@ -2,6 +2,10 @@ import { Worker } from 'bullmq';
 import { getConnection, closeConnection } from '@/lib/bullmq/connection';
 import { closeAllQueues } from '@/lib/bullmq/queues';
 import { createHealthcheckWorker, closeHealthcheck } from './healthcheck';
+import { createSequenceWorker } from './sequence';
+import { createEmailWorker } from './email';
+import { createNotificationWorker } from './notification';
+import { createMaintenanceWorker } from './maintenance';
 
 const workers: Worker[] = [];
 
@@ -9,6 +13,22 @@ function registerWorkers(): void {
   const healthcheck = createHealthcheckWorker();
   workers.push(healthcheck);
   console.log('[worker] registered: healthcheck');
+
+  const sequence = createSequenceWorker();
+  workers.push(sequence);
+  console.log('[worker] registered: sequence');
+
+  const email = createEmailWorker();
+  workers.push(email);
+  console.log('[worker] registered: email');
+
+  const notification = createNotificationWorker();
+  workers.push(notification);
+  console.log('[worker] registered: notification');
+
+  const maintenance = createMaintenanceWorker();
+  workers.push(maintenance);
+  console.log('[worker] registered: maintenance');
 }
 
 function attachSignals(): void {

@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { EmailService } from '@/lib/email/EmailService';
 import { renderTemplate } from '@/lib/templates/render';
 import { parseBody } from '@/lib/validation/core';
 import { sendEmailSchema } from '@/lib/validation/schemas';
+import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
+  const tenantId = user.tenantId;
+
+  let leadCampaignId: string | null = null;
+
   if (body.leadId) {
     const lead = await prisma.lead.findUnique({
       where: { id: body.leadId },
@@ -25,6 +29,22 @@ export async function POST(req: NextRequest) {
     if (!(await canAccessLead(user, lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    leadCampaignId = lead.campaignId;
+  }
+
+  // Suppression gate — check recipient email/domain against suppression entries
+  const recipientDomain = body.to.split('@')[1];
+  const suppressed = await prisma.suppressionEntry.findFirst({
+    where: {
+      tenantId,
+      AND: [
+        { OR: [{ email: body.to }, { domain: recipientDomain }] },
+        { OR: [{ campaignId: leadCampaignId }, { campaignId: null }] },
+      ],
+    },
+  });
+  if (suppressed) {
+    return NextResponse.json({ error: 'Recipient is suppressed' }, { status: 403 });
   }
 
   const account = await prisma.emailAccount.findFirst({
@@ -36,7 +56,6 @@ export async function POST(req: NextRequest) {
 
   let subject: string = body.subject ?? '';
   let text: string = body.text ?? body.body ?? '';
-  let html: string | undefined = body.html ?? body.body;
 
   // When sending from a template, render merge fields server-side with real lead data
   if (body.templateId && body.leadId) {
@@ -49,14 +68,11 @@ export async function POST(req: NextRequest) {
     }
     subject = renderTemplate(body.subject ?? template.subject ?? '', lead, user);
     text = renderTemplate(body.body ?? template.body, lead, user);
-    html = text.replace(/\n/g, '<br>');
   } else if (body.leadId) {
-    // Freeform compose may still contain merge fields — render against the lead
     const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
     if (lead) {
       subject = renderTemplate(subject, lead, user);
       text = renderTemplate(text, lead, user);
-      html = html ? renderTemplate(html, lead, user) : undefined;
     }
   }
 
@@ -68,38 +84,32 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const emailService = await EmailService.fromAccount(account);
-    await emailService.send({
-      from: account.email,
+    const outboundMessage = await createOutboundMessage({
+      leadId: body.leadId ?? 'unknown',
+      accountId: body.accountId,
+      templateId: body.templateId,
       to: body.to,
       subject,
-      html: html ?? text,
-      text,
-      ...(body.replyTo ? { replyTo: body.replyTo } : {}),
+      body: text,
+      tenantId,
     });
 
-    // Log the activity
-    if (body.leadId) {
-      await prisma.activity.create({
-        data: {
-          userId: user.id,
-          leadId: body.leadId,
-          type: 'email_sent',
-          channel: 'email',
-          description: `Email sent to ${body.to}`,
-          metadata: { subject, accountId: account.id },
-        },
-      });
+    await enqueueEmailSendWorkflow(
+      {
+        outboundMessageId: outboundMessage.id,
+        accountId: body.accountId,
+        to: body.to,
+        subject,
+        body: text,
+        leadId: body.leadId,
+        templateId: body.templateId,
+      },
+      tenantId
+    );
 
-      await prisma.lead.update({
-        where: { id: body.leadId },
-        data: { lastContactedAt: new Date() },
-      });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id });
   } catch (err) {
-    console.error('[email/send] send failed:', err);
-    return NextResponse.json({ error: 'Failed to send email. Check your email connection in Settings.' }, { status: 500 });
+    console.error('[email/send] enqueue failed:', err);
+    return NextResponse.json({ error: 'Failed to queue email' }, { status: 500 });
   }
 }

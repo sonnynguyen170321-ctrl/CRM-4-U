@@ -10,6 +10,7 @@ export type SessionUser = {
   lastName: string;
   role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
   isManager?: boolean;
+  tenantId?: string;
 };
 
 /** Get the authenticated session user from a Server Component or API route. */

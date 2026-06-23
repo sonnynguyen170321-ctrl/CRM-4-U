@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import { EmailService } from '@/lib/email/EmailService';
 import { renderTemplate } from '@/lib/templates/render';
 import { advanceSequence } from './engine';
+import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 
 const BUSINESS_HOUR_START = 9;
 const BUSINESS_HOUR_END = 17;
@@ -187,18 +187,30 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       }
 
       try {
-        const service = await EmailService.fromAccount(account);
-        await service.send({
-          from: account.email,
+        const outbound = await createOutboundMessage({
+          leadId: lead.id,
+          accountId: account.id,
+          templateId: template.id,
           to: lead.email,
           subject,
-          text: body,
-          html: body.replace(/\n/g, '<br>'),
+          body,
+          tenantId: lead.tenantId,
         });
-        await incrementSendCount(account.id);
+        await enqueueEmailSendWorkflow(
+          {
+            outboundMessageId: outbound.id,
+            accountId: account.id,
+            to: lead.email,
+            subject,
+            body,
+            leadId: lead.id,
+            templateId: template.id,
+          },
+          lead.tenantId
+        );
       } catch (sendErr) {
         await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
-        console.error(`[smart-send] send failed for task ${task.id}:`, sendErr);
+        console.error(`[smart-send] enqueue failed for task ${task.id}:`, sendErr);
         errors.push(task.id);
         continue;
       }

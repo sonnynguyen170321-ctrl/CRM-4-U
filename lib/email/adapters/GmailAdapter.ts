@@ -72,10 +72,11 @@ export class GmailAdapter implements EmailAdapter {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await gmail.users.messages.send({
+    const msg = await gmail.users.messages.send({
       userId: 'me',
       requestBody: { raw },
     });
+    return msg.data.id ?? undefined;
   }
 
   /** Fetch inbox messages received since `since` (metadata only). */
