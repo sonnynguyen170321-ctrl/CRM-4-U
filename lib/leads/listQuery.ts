@@ -35,7 +35,7 @@ export function buildLeadListWhere(
   }
 
   if (filters.stage) clauses.push({ stage: filters.stage });
-  if (filters.priority) clauses.push({ priority: filters.priority });
+  if (filters.priority) clauses.push({ crmPriorityScore: filters.priority });
   if (filters.assignedTo) clauses.push({ assignedToId: filters.assignedTo });
   if (filters.campaignId) clauses.push({ campaignId: filters.campaignId });
   if (filters.source) clauses.push({ source: { contains: filters.source, mode: 'insensitive' } });

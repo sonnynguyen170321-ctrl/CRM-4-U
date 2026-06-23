@@ -197,10 +197,30 @@ model CampaignSdr {
   @@index([tenantId])
 }
 
-// ─── Leads ───────────────────────────────────────────────────────────────────
+// ─── Account (company-level) — Premium Data Model (P8) ──────────────────────
 
-model Lead {
-  id              String    @id @default(cuid())
+model Account {
+  id        String   @id @default(cuid())
+  name      String
+  industry  String?
+  website   String?
+  linkedIn  String?
+  size      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leads Lead[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// ─── Contact (person-level) — Premium Data Model (P8) ───────────────────────
+
+model Contact {
+  id              String   @id @default(cuid())
   firstName       String
   lastName        String
   company         String
@@ -209,6 +229,36 @@ model Lead {
   phone           String?
   linkedIn        String?
   whatsApp        String?
+  normalizedEmail    String?
+  normalizedPhone    String?
+  normalizedLinkedIn String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadAssignments Lead[]
+
+  @@unique([tenantId, normalizedEmail])
+  @@index([tenantId])
+}
+
+// ─── Leads (assignment-level) — Premium Data Model (P8) ─────────────────────
+
+model Lead {
+  id              String    @id @default(cuid())
+  contactId       String?
+  contact         Contact?  @relation(fields: [contactId], references: [id])
+  firstName       String
+  lastName        String
+  company         String
+  title           String?
+  email           String
+  phone           String?
+  linkedIn        String?
+  whatsApp        String?
+  accountId       String?
+  account         Account?  @relation(fields: [accountId], references: [id])
   stage           LeadStage @default(new)
   assignedToId    String
   assignedTo      User      @relation("LeadAssignee", fields: [assignedToId], references: [id])
@@ -222,7 +272,8 @@ model Lead {
   emailInvalid    Boolean   @default(false)
   source          String?
   tags            String[]
-  priority        Priority  @default(warm)
+  crmPriorityScore Priority  @default(warm)
+  engagementScore Int?
   lastContactedAt DateTime?
   nextTaskDue     DateTime?
   emailSentCount  Int       @default(0)
@@ -250,7 +301,10 @@ model Lead {
   @@index([stage])
   @@index([assignedToId])
   @@index([campaignId])
-  @@index([priority])
+  @@index([accountId])
+  @@index([crmPriorityScore])
+  @@index([engagementScore])
+  @@index([contactId])
   @@index([tenantId])
   @@index([campaignId, stage])
   @@index([campaignId, assignedToId])
@@ -691,6 +745,8 @@ model Tenant {
   clients            Client[]
   campaigns          Campaign[]
   campaignSdrs       CampaignSdr[]
+  accounts           Account[]
+  contacts           Contact[]
   leads              Lead[]
   sequences          Sequence[]
   sequenceSteps      SequenceStep[]

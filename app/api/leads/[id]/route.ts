@@ -100,7 +100,7 @@ export async function PUT(
       ...(body.whatsApp !== undefined && { whatsApp: body.whatsApp }),
       ...(body.stage !== undefined && { stage: body.stage }),
       ...(body.assignedToId !== undefined && { assignedToId: body.assignedToId }),
-      ...(body.priority !== undefined && { priority: body.priority }),
+      ...(body.priority !== undefined && { crmPriorityScore: body.priority }),
       ...(body.tags !== undefined && { tags: body.tags }),
       ...(body.lastContactedAt !== undefined && { lastContactedAt: body.lastContactedAt }),
     },

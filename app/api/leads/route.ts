@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
           select: { dueDate: true, type: true, status: true, sequenceId: true },
         },
       },
-      orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
+      orderBy: [{ crmPriorityScore: 'asc' }, { updatedAt: 'desc' }],
     });
 
     const atRiskCutoff = new Date(Date.now() - 3 * 86400000);
@@ -113,23 +113,39 @@ export async function POST(req: NextRequest) {
 
   try {
     // No explicit priority → derive it from the AI lead score (hot/warm/cold)
-    const priority =
-      body.priority ??
-      scoreLead({
-        ...body,
-        id: 'new',
-        stage: body.stage ?? 'new',
-        priority: 'warm', // neutral baseline — the score decides the label
-        tags: body.tags ?? [],
-        lastContactedAt: null,
-        nextTaskDue: null,
-        createdAt: new Date().toISOString(),
-        activities: [],
-        tasks: [],
-      }).label;
+    const aiScore = body.priority ? null : scoreLead({
+      ...body,
+      id: 'new',
+      stage: body.stage ?? 'new',
+      crmPriorityScore: body.priority ?? 'warm',
+      tags: body.tags ?? [],
+      lastContactedAt: null,
+      nextTaskDue: null,
+      createdAt: new Date().toISOString(),
+      activities: [],
+      tasks: [],
+    });
+    const priority: 'hot' | 'warm' | 'cold' = body.priority ?? aiScore?.label ?? 'warm';
+
+    // Create or find Contact (person-level dedup)
+    const normalizedEmail = body.email.toLowerCase().trim();
+    let contact = await prisma.contact.findUnique({
+      where: { tenantId_normalizedEmail: { tenantId: user.tenantId!, normalizedEmail } },
+    });
+    if (contact) {
+      contact = await prisma.contact.update({
+        where: { id: contact.id },
+        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null },
+      });
+    } else {
+      contact = await prisma.contact.create({
+        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null, tenantId: user.tenantId! },
+      });
+    }
 
     const lead = await prisma.lead.create({
       data: {
+        contactId: contact.id,
         firstName: body.firstName,
         lastName: body.lastName,
         company: body.company,
@@ -143,7 +159,9 @@ export async function POST(req: NextRequest) {
         campaignId: body.campaignId,
         source: body.source,
         tags: body.tags ?? [],
-        priority,
+        crmPriorityScore: priority,
+        engagementScore: aiScore?.score ?? null,
+        normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null,
       },
     });
 

@@ -539,8 +539,25 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
 
   const createdLeads: any[] = [];
   for (const l of leadsData) {
+    // Create or find Contact (person-level dedup)
+    const normalizedEmail = l.email.toLowerCase().trim();
+    let contact = await prisma.contact.findUnique({
+      where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+    });
+    if (contact) {
+      contact = await prisma.contact.update({
+        where: { id: contact.id },
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail },
+      });
+    } else {
+      contact = await prisma.contact.create({
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, tenantId },
+      });
+    }
+
     const lead = await prisma.lead.create({
       data: {
+        contactId: contact.id,
         firstName: l.firstName,
         lastName: l.lastName,
         company: l.company,
@@ -553,7 +570,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
         campaignId: l.campaign.id,
         source: 'CSV Import',
         tags: ['B2B', l.campaign.id === cmp1.id ? 'ERP' : l.campaign.id === cmp2.id ? 'Fintech' : 'Logistics'],
-        priority: l.priority as any,
+        crmPriorityScore: l.crmPriorityScore as any,
+        normalizedEmail,
         // Only genuinely-active leads carry an active enrollment. Leads that have
         // replied (or moved to meeting/won/lost) are auto-unenrolled per the product
         // rules, so they get no sequence link — keeps the UI from showing a phantom

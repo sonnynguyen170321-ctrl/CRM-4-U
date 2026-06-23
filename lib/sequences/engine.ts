@@ -22,7 +22,7 @@ export function computeStepDueDate(base: Date, step: Pick<SequenceStep, 'delayDa
 
 /** Create the task for one sequence step and update the lead's nextTaskDue. */
 export async function createTaskForStep(
-  lead: Pick<Lead, 'id' | 'assignedToId' | 'priority'>,
+  lead: Pick<Lead, 'id' | 'assignedToId' | 'crmPriorityScore'>,
   sequence: Pick<Sequence, 'id' | 'name'>,
   step: SequenceStep,
   baseDate: Date
@@ -40,7 +40,7 @@ export async function createTaskForStep(
       dueDate,
       sequenceId: sequence.id,
       sequenceStep: step.order,
-      priority: PRIORITY_MAP[lead.priority],
+      priority: PRIORITY_MAP[lead.crmPriorityScore],
     },
   });
 
@@ -80,7 +80,7 @@ export async function advanceSequence(
     where: { id: task.leadId },
     select: {
       id: true, sequenceId: true, sequenceStep: true, sequenceStatus: true,
-      assignedToId: true, firstName: true, lastName: true, priority: true,
+      assignedToId: true, firstName: true, lastName: true, crmPriorityScore: true,
     },
   });
   if (!lead || lead.sequenceId !== task.sequenceId) return;

@@ -81,14 +81,31 @@ export interface EmailApplyBouncePayload {
   bounceType: 'hard' | 'soft';
 }
 
+export type ImportResolution = 'skip' | 'update' | 'import';
+
 export interface ImportParsePayload {
   batchId: string;
+  assignedToId: string;
+  campaignId: string;
+  tenantId: string;
+  userId: string;
+  initialStage?: string;
+  sequenceId?: string;
+  defaultResolution?: ImportResolution;
+  resolutions?: Record<string, ImportResolution>;
 }
 
 export interface ImportChunkPayload {
   batchId: string;
   chunkIndex: number;
+  rowIds: string[];
   rows: Record<string, unknown>[];
+  assignedToId: string;
+  userId: string;
+  campaignId: string;
+  tenantId: string;
+  initialStage: string;
+  sequenceId?: string;
 }
 
 export interface ImportCommitPayload {

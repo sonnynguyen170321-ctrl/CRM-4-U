@@ -89,7 +89,7 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
 
   // Create first step task
   await createTaskForStep(
-    { id: leadId, assignedToId: lead.assignedToId, priority: lead.priority },
+    { id: leadId, assignedToId: lead.assignedToId, crmPriorityScore: lead.crmPriorityScore },
     sequence,
     sequence.steps[0],
     new Date()

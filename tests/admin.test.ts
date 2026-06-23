@@ -236,11 +236,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Admin Endpoints - Import DB Integrat
     });
 
     const res = await importLeads(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
 
     const body = await res.json();
-    expect(body.imported).toBe(1);
-    expect(body.errorRows.length).toBe(1);
+    expect(body.batchId).toBeDefined();
+    expect(body.totalRows).toBe(2);
 
     // Verify DB has logged the batch and rows
     await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
@@ -251,18 +251,13 @@ describe.skipIf(!process.env.DATABASE_URL)('Admin Endpoints - Import DB Integrat
 
       expect(batch).toBeDefined();
       expect(batch?.totalRows).toBe(2);
-      expect(batch?.parsedRows).toBe(1);
-      expect(batch?.errorRows).toBe(1);
-      expect(batch?.status).toBe('committed');
+      // Rows stay 'pending' until BullMQ workers process them (not available in test)
+      expect(batch?.parsedRows).toBe(0);
+      expect(batch?.errorRows).toBe(0);
+      expect(batch?.status).toBe('pending');
 
       expect(batch?.importRows.length).toBe(2);
-      const importedRow = batch?.importRows.find((r) => r.status === 'imported');
-      const errorRow = batch?.importRows.find((r) => r.status === 'error');
-
-      expect(importedRow).toBeDefined();
-      expect(importedRow?.leadId).toBeDefined();
-      expect(errorRow).toBeDefined();
-      expect((errorRow?.errors as any).reason).toBe('Missing name and email');
+      expect(batch?.importRows.every((r) => r.status === 'pending')).toBe(true);
     });
   });
 });

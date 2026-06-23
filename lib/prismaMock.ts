@@ -62,7 +62,7 @@ export const prismaMock: any = {
       let result = [...leads];
       if (where?.assignedToId) result = result.filter((l) => (l.assignedTo ?? l.assignedToId) === where.assignedToId);
       if (where?.stage) result = result.filter((l) => l.stage === where.stage);
-      if (where?.priority) result = result.filter((l) => l.priority === where.priority);
+      if (where?.crmPriorityScore) result = result.filter((l) => l.crmPriorityScore === where.crmPriorityScore);
       if (where?.campaignId) result = result.filter((l) => l.campaignId === where.campaignId);
       if (where?.OR) {
         const q = where.OR[0]?.firstName?.contains?.toLowerCase() || '';
@@ -150,7 +150,7 @@ export const prismaMock: any = {
       const lead = {
         id: 'l_' + Math.random().toString(36).slice(2),
         stage: 'new',
-        priority: 'warm',
+        crmPriorityScore: 'warm',
         tags: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

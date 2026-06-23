@@ -70,6 +70,11 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     attempts: 3,
     backoff: { type: 'exponential', delay: 3000 },
   },
+  [JobType.IMPORT_COMMIT]: {
+    attempts: 3,
+    backoff: { type: 'fixed', delay: 5000 },
+    timeout: 120000,
+  },
   [JobType.REMINDER_DUE]: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },

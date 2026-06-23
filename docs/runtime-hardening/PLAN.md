@@ -109,7 +109,7 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] Hard-vs-soft bounce handling (deferred to P6).
 
 ### P5 — Import worker
-- [ ] `import.parse/chunk/commit`; scoped dedupe (`duplicate_exists_outside_visible_scope`, no ids leaked); 10k rows non-blocking; row-level errors.
+- [x] `import.parse/chunk/commit`; scoped dedupe (`duplicate_exists_outside_visible_scope`, no ids leaked); 10k rows non-blocking; row-level errors.
 
 ### P6 — Sync / reply / bounce worker
 - [x] Port `inbox-sync` into `sync.worker`; `apply-reply`/`apply-bounce` idempotent on provider `messageId`; hard-bounce → `SuppressionEntry`; reply → `sequence.pause`.
@@ -118,7 +118,8 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] `reminder.due`, `digest.daily`, repair jobs (orphans, stale `sending`, stuck `running`, missing delayed jobs, reassignment drift) — idempotent + audit.
 
 ### P8 — (optional) Premium data model
-- [ ] Split Lead → Account/Contact/LeadAssignment; rename AI score → `engagementScore`/`crmPriorityScore`.
+- [x] **Phase 1:** Add `Account` model; add `accountId` + `engagementScore` to Lead; rename `priority` → `crmPriorityScore`.  Migration populates Account from existing Lead companies.
+- [ ] **Phase 2 (future):** Extract `Contact` from Lead; extract `LeadAssignment` from Lead (requires migrating FK references on 7 child models).
 
 ### P9 — UI wiring (no demo/fake state)
 - [x] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.
