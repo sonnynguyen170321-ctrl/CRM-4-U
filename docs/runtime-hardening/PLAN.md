@@ -84,7 +84,7 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] **P0.11** Fence Topbar role simulation — never authorize from simulated role; prod banner/hide.
 
 ### P1 — Schema hardening (`DIRECT_URL` for migrations)
-- [ ] **P1.0** Reconcile drift: migrate already-in-schema `Tenant`/`tenantId`/`AiMemory`; seed `upsert`s default tenant **first**.
+- [x] **P1.0** Reconcile drift: migrate already-in-schema `Tenant`/`tenantId`/`AiMemory`; seed `upsert`s default tenant **first**.
 - [ ] **P1.1** Tenant cleanup — explicit `tenantId` on all creates; remove blind defaults where safe; worker rejects tenant mismatch.
 - [ ] **P1.2** `JobRun` model (durable mirror) — deterministic `dedupeKey @unique`.
 - [ ] **P1.3** `OutboundMessage` model — server-derived `idempotencyKey @unique`.

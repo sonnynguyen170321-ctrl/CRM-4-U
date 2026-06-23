@@ -29,6 +29,17 @@ async function main() {
   await prisma.client.deleteMany();
   await prisma.emailAccount.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.tenant.deleteMany();
+
+  // ─── Tenants ──────────────────────────────────────────────────────────────
+  await prisma.tenant.upsert({
+    where: { id: 'default-tenant' },
+    update: {},
+    create: {
+      id: 'default-tenant',
+      name: 'Default Tenant',
+    },
+  });
 
   // ─── Users ────────────────────────────────────────────────────────────────
   const pw = await hash('telestar2026', 12);
