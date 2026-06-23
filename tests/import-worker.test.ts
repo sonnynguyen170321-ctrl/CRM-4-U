@@ -16,6 +16,8 @@ const mockSequenceFindUnique = vi.fn();
 const mockContactFindUnique = vi.fn();
 const mockContactCreate = vi.fn();
 const mockContactUpdate = vi.fn();
+const mockAccountFindUnique = vi.fn();
+const mockAccountCreate = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
 
@@ -48,6 +50,10 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
       create: (...args: unknown[]) => mockContactCreate(...args),
       update: (...args: unknown[]) => mockContactUpdate(...args),
+    },
+    account: {
+      findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
+      create: (...args: unknown[]) => mockAccountCreate(...args),
     },
   },
 }));
@@ -260,6 +266,8 @@ describe('handleImportParse', () => {
 describe('handleImportChunk', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccountFindUnique.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockAccountCreate.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
     mockContactFindUnique.mockResolvedValue(null);
     mockContactCreate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
     mockContactUpdate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });

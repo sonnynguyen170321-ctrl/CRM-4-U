@@ -14,6 +14,7 @@ const d = (offsetDays: number, hour = 10) => {
 };
 
 async function main() {
+  const tenantId = 'default-tenant';
   console.log('🌱 Seeding Telestar CRM...');
 
   // ─── Clean (use raw client for cleanup to avoid tenant scoping issues) ─────
@@ -504,6 +505,19 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
 
   console.log('✅ Sequences created');
 
+  // ─── Accounts (from distinct lead companies) ───────────────────────────────
+  const uniqueCompanies = [...new Set(leadsData.map(l => l.company).filter(Boolean))];
+  const accounts = new Map<string, string>();
+  for (const company of uniqueCompanies) {
+    const account = await prisma.account.upsert({
+      where: { tenantId_name: { tenantId, name: company } },
+      create: { name: company, tenantId },
+      update: {},
+    });
+    accounts.set(company, account.id);
+  }
+  console.log(`✅ ${accounts.size} Accounts created`);
+
   // ─── Leads ────────────────────────────────────────────────────────────────
   const leadsData = [
     // Lan's leads (cmp1 — Acme ERP)
@@ -547,17 +561,18 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     if (contact) {
       contact = await prisma.contact.update({
         where: { id: contact.id },
-        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail },
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, normalizedPhone: l.phone?.replace(/\D/g, '') ?? null, normalizedLinkedIn: l.linkedIn?.toLowerCase().trim() ?? null },
       });
     } else {
       contact = await prisma.contact.create({
-        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, tenantId },
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, normalizedPhone: l.phone?.replace(/\D/g, '') ?? null, normalizedLinkedIn: l.linkedIn?.toLowerCase().trim() ?? null, tenantId },
       });
     }
 
     const lead = await prisma.lead.create({
       data: {
         contactId: contact.id,
+        accountId: accounts.get(l.company) ?? null,
         firstName: l.firstName,
         lastName: l.lastName,
         company: l.company,

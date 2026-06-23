@@ -8,6 +8,7 @@ import { parseBody, capLimit } from '@/lib/validation/core';
 import { createLeadSchema, leadStage, priority as prioritySchema } from '@/lib/validation/schemas';
 import { buildLeadListWhere } from '@/lib/leads/listQuery';
 import { handleApiError } from '@/lib/api/errors';
+import { normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -78,6 +79,7 @@ export async function GET(req: NextRequest) {
       const aiScore = scoreLead({ ...l, activities: [] });
       return {
         ...l,
+        priority: l.crmPriorityScore,
         nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
         nextTaskType: l.tasks?.[0]?.type ?? null,
         atRisk: (l.tasks ?? []).some(
@@ -127,6 +129,19 @@ export async function POST(req: NextRequest) {
     });
     const priority: 'hot' | 'warm' | 'cold' = body.priority ?? aiScore?.label ?? 'warm';
 
+    // Create or find Account by company
+    let account: { id: string } | null = null;
+    if (body.company?.trim()) {
+      account = await prisma.account.findUnique({
+        where: { tenantId_name: { tenantId: user.tenantId!, name: body.company.trim() } },
+      });
+      if (!account) {
+        account = await prisma.account.create({
+          data: { name: body.company.trim(), tenantId: user.tenantId! },
+        });
+      }
+    }
+
     // Create or find Contact (person-level dedup)
     const normalizedEmail = body.email.toLowerCase().trim();
     let contact = await prisma.contact.findUnique({
@@ -135,17 +150,18 @@ export async function POST(req: NextRequest) {
     if (contact) {
       contact = await prisma.contact.update({
         where: { id: contact.id },
-        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null },
+        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: normalizePhone(body.phone), normalizedLinkedIn: normalizeLinkedIn(body.linkedIn) },
       });
     } else {
       contact = await prisma.contact.create({
-        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null, tenantId: user.tenantId! },
+        data: { firstName: body.firstName, lastName: body.lastName, company: body.company, title: body.title, email: body.email, phone: body.phone, linkedIn: body.linkedIn, whatsApp: body.whatsApp, normalizedEmail, normalizedPhone: normalizePhone(body.phone), normalizedLinkedIn: normalizeLinkedIn(body.linkedIn), tenantId: user.tenantId! },
       });
     }
 
     const lead = await prisma.lead.create({
       data: {
         contactId: contact.id,
+        accountId: account?.id ?? null,
         firstName: body.firstName,
         lastName: body.lastName,
         company: body.company,
@@ -161,7 +177,7 @@ export async function POST(req: NextRequest) {
         tags: body.tags ?? [],
         crmPriorityScore: priority,
         engagementScore: aiScore?.score ?? null,
-        normalizedEmail, normalizedPhone: body.phone?.replace(/\s/g, '') ?? null, normalizedLinkedIn: body.linkedIn?.toLowerCase().trim() ?? null,
+        normalizedEmail, normalizedPhone: normalizePhone(body.phone), normalizedLinkedIn: normalizeLinkedIn(body.linkedIn),
       },
     });
 

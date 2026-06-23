@@ -8,7 +8,6 @@ import { createTaskForStep } from '@/lib/sequences/engine';
 
 const CHUNK_SIZE = 500;
 
-const normalizePhoneFn = (p?: string | null) => (p ?? '').replace(/\D/g, '');
 const summary = (l: { firstName: string; lastName: string; company: string; email?: string }) =>
   `${l.firstName} ${l.lastName} — ${l.company}${l.email ? ` (${l.email})` : ''}`;
 
@@ -64,7 +63,7 @@ async function handleImportParse(payload: ImportParsePayload) {
     if (email && !byEmail.has(email)) byEmail.set(email, l);
     const nameKey = `${(l.firstName ?? '').toLowerCase()}|${(l.lastName ?? '').toLowerCase()}|${(l.company ?? '').toLowerCase()}`;
     if (!byNameCompany.has(nameKey)) byNameCompany.set(nameKey, l);
-    const phone = normalizePhoneFn(l.phone);
+    const phone = normalizePhone(l.phone);
     if (phone && !byPhone.has(phone)) byPhone.set(phone, l);
   }
 
@@ -78,7 +77,7 @@ async function handleImportParse(payload: ImportParsePayload) {
     const lastName = (vr.data.lastName as string ?? '').trim();
     const email = (vr.data.email as string ?? '').trim().toLowerCase();
     const company = (vr.data.company as string ?? '').trim();
-    const phone = normalizePhoneFn(vr.data.phone as string | null | undefined);
+    const phone = normalizePhone(vr.data.phone as string | null | undefined);
 
     // In-batch dedup
     if (email && seenInBatch.has(email)) {
@@ -238,10 +237,23 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         : 'warm';
 
     try {
+      // Create or find Account by company name
+      let account: { id: string } | null = null;
+      if (company) {
+        account = await prisma.account.findUnique({
+          where: { tenantId_name: { tenantId, name: company } },
+        });
+        if (!account) {
+          account = await prisma.account.create({
+            data: { name: company, tenantId },
+          });
+        }
+      }
+
       // Create or find Contact (person-level dedup)
-      const normalizedEmail = email ? normalizeEmail(email) : null;
-      const normalizedPhone = phone ? normalizePhone(phone) : null;
-      const normalizedLinkedIn = linkedIn ? normalizeLinkedIn(linkedIn) : null;
+      const normalizedEmail = normalizeEmail(email);
+      const normalizedPhone = normalizePhone(phone);
+      const normalizedLinkedIn = normalizeLinkedIn(linkedIn);
       let contact: { id: string } | null = null;
       if (normalizedEmail) {
         contact = await prisma.contact.findUnique({
@@ -262,6 +274,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
       const createdLead = await prisma.lead.create({
         data: {
           contactId: contact.id,
+          accountId: account?.id ?? null,
           firstName,
           lastName,
           company,

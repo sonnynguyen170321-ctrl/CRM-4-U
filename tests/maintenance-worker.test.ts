@@ -53,7 +53,7 @@ describe('handleRepair — orphan-tasks', () => {
 
     expect(result['orphan-tasks'].fixed).toBe(1);
     expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 'task-1' },
+      where: { id: 'task-1', status: 'pending' },
       data: { status: 'skipped', notes: expect.stringContaining('orphan') },
     });
   });
@@ -67,7 +67,7 @@ describe('handleRepair — orphan-tasks', () => {
 
     expect(result['orphan-tasks'].fixed).toBe(1);
     expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 'task-1' },
+      where: { id: 'task-1', status: 'pending' },
       data: { status: 'skipped', notes: expect.stringContaining('orphan') },
     });
   });

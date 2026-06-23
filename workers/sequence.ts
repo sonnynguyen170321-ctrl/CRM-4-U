@@ -68,6 +68,20 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
     },
   });
 
+  // Re-fetch lead for fresh assignedToId/crmPriorityScore
+  const freshLead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { assignedToId: true, crmPriorityScore: true },
+  });
+
+  // Create first step task BEFORE updating lead (so task failure doesn't leave lead in "enrolled with no task" state)
+  await createTaskForStep(
+    { id: leadId, assignedToId: freshLead?.assignedToId ?? lead.assignedToId, crmPriorityScore: freshLead?.crmPriorityScore ?? lead.crmPriorityScore },
+    sequence,
+    sequence.steps[0],
+    new Date()
+  );
+
   // Update lead
   await prisma.lead.update({
     where: { id: leadId },
@@ -86,14 +100,6 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
       metadata: { sequenceId, sequenceName: sequence.name },
     },
   });
-
-  // Create first step task
-  await createTaskForStep(
-    { id: leadId, assignedToId: lead.assignedToId, crmPriorityScore: lead.crmPriorityScore },
-    sequence,
-    sequence.steps[0],
-    new Date()
-  );
 
   return { success: true, leadId, sequenceId };
 }

@@ -62,6 +62,23 @@ export async function POST(
       });
     }
 
+    // Close any existing active enrollments before creating a new one
+    await prisma.sequenceEnrollment.updateMany({
+      where: { leadId, status: 'active' },
+      data: { status: 'unenrolled', completedAt: new Date() },
+    });
+
+    // Create new enrollment record
+    await prisma.sequenceEnrollment.create({
+      data: {
+        leadId,
+        sequenceId: id,
+        status: 'active',
+        currentStep: 1,
+        tenantId: lead.tenantId,
+      },
+    });
+
     const updatedLead = await prisma.lead.update({
       where: { id: leadId },
       data: {
@@ -125,6 +142,11 @@ export async function DELETE(
     if (lead.tenantId !== sequence.tenantId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    await prisma.sequenceEnrollment.updateMany({
+      where: { leadId, sequenceId: id, status: { in: ['active', 'paused'] } },
+      data: { status: 'unenrolled', completedAt: new Date() },
+    });
 
     await unenrollLead(leadId, id);
     await prisma.activity.create({

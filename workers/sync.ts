@@ -154,19 +154,22 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
     select: { id: true, email: true, firstName: true, lastName: true, company: true, sequenceId: true, assignedToId: true, tags: true, emailInvalid: true, tenantId: true },
   });
   if (!lead) return { skipped: true, reason: 'lead_not_found' };
-  if (lead.emailInvalid) return { skipped: true, reason: 'already_invalid' };
 
-  const tags = lead.tags as string[] | undefined;
+  const isHard = bounceType === 'hard';
 
-  await prisma.lead.update({
-    where: { id: leadId },
-    data: {
-      emailInvalid: true,
-      tags: tags?.includes('invalid-email') ? undefined : { push: 'invalid-email' },
-    },
-  });
+  // Hard bounces make the email permanently invalid; soft bounces are transient
+  if (isHard) {
+    if (lead.emailInvalid) return { skipped: true, reason: 'already_invalid' };
 
-  if (bounceType === 'hard') {
+    const tags = lead.tags as string[] | undefined;
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        emailInvalid: true,
+        tags: tags?.includes('invalid-email') ? undefined : { push: 'invalid-email' },
+      },
+    });
+
     const existingSuppression = await prisma.suppressionEntry.findFirst({
       where: { tenantId: lead.tenantId, email: lead.email, reason: 'hard_bounce' },
     });
@@ -189,8 +192,8 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
     data: {
       userId: lead.assignedToId ?? accountId,
       type: 'email_bounced',
-      title: 'Email Bounced',
-      text: `Email to ${lead.firstName} ${lead.lastName} (${lead.email}) bounced. The address was flagged invalid${lead.sequenceId ? ' and the sequence was paused' : ''}.`,
+      title: isHard ? 'Email Bounced (Hard)' : 'Email Bounced (Soft)',
+      text: `Email to ${lead.firstName} ${lead.lastName} (${lead.email}) ${isHard ? 'hard-bounced' : 'soft-bounced'}. The address was ${isHard ? 'flagged invalid' : 'temporarily rejected'}${lead.sequenceId ? ' and the sequence was paused' : ''}.`,
       linkTo: `/leads/${leadId}`,
     },
   });

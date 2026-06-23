@@ -167,7 +167,7 @@ describe('handleApplyBounce', () => {
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
-  it('soft bounce: marks emailInvalid but does not create SuppressionEntry', async () => {
+  it('soft bounce: does not mark emailInvalid or create SuppressionEntry', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
 
     const result = await handleApplyBounce({
@@ -175,7 +175,7 @@ describe('handleApplyBounce', () => {
     });
 
     expect(result).toEqual({ success: true, leadId: 'lead-1', bounceType: 'soft', providerMessageId: 'msg-1' });
-    expect(mockLeadUpdate).toHaveBeenCalled();
+    expect(mockLeadUpdate).not.toHaveBeenCalled();
     expect(mockSuppressionCreate).not.toHaveBeenCalled();
     expect(pauseSequence).toHaveBeenCalled();
     expect(mockNotificationCreate).toHaveBeenCalled();

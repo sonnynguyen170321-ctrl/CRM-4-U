@@ -20,7 +20,7 @@ async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }
     const user = await prisma.user.findUnique({ where: { id: task.userId }, select: { id: true } });
     if (!lead || !user) {
       await prisma.task.update({
-        where: { id: task.id },
+        where: { id: task.id, status: 'pending' },
         data: { status: 'skipped', notes: `Deleted due to orphan: ${!lead ? 'lead missing' : ''} ${!user ? 'user missing' : ''}`.trim() },
       });
       fixed++;

@@ -94,6 +94,9 @@ export async function advanceSequence(
   const totalSteps = sequence.steps.length;
   const nextStepOrder = (lead.sequenceStep ?? task.sequenceStep) + 1;
 
+  // Don't queue further work while paused (reply/bounce); resume re-creates it
+  if (lead.sequenceStatus === 'paused') return;
+
   if (nextStepOrder > totalSteps) {
     // All steps done — unenroll and notify
     await prisma.lead.update({
@@ -124,12 +127,9 @@ export async function advanceSequence(
   }
 
   await prisma.lead.update({
-    where: { id: lead.id },
+    where: { id: lead.id, sequenceStep: lead.sequenceStep },
     data: { sequenceStep: nextStepOrder },
   });
-
-  // Don't queue further work while paused (reply/bounce); resume re-creates it
-  if (lead.sequenceStatus === 'paused') return;
 
   const nextStep = sequence.steps.find((s) => s.order === nextStepOrder);
   if (nextStep) {
@@ -179,7 +179,7 @@ export async function pauseSequence(
     data: {
       userId: actorUserId,
       leadId,
-      type: 'sequence_unenrolled',
+      type: 'sequence_paused',
       description: `Sequence "${sequence?.name ?? lead.sequenceId}" paused — ${PAUSE_DESCRIPTIONS[reason]}`,
       metadata: { sequenceId: lead.sequenceId, reason, paused: true },
     },

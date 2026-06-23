@@ -13,7 +13,7 @@ async function handleReminderDue(payload: ReminderDuePayload) {
   if (reminder.isDismissed) return { skipped: true, reason: 'already_dismissed' };
 
   const existing = await prisma.notification.findFirst({
-    where: { userId: reminder.userId, type: 'reminder_due', createdAt: { gte: reminder.dueAt } },
+    where: { userId: reminder.userId, type: 'reminder_due', text: reminder.text },
   });
   if (existing) return { skipped: true, reason: 'already_notified' };
 
