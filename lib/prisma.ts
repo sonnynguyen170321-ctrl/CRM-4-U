@@ -37,12 +37,20 @@ const getTenantIdFromSession = cache(async function getTenantIdFromSession(): Pr
 });
 
 function createPrismaClient() {
-  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+  const isWorker = process.env.IS_WORKER === 'true';
+  const connectionString = isWorker ? (process.env.DIRECT_URL || process.env.DATABASE_URL) : process.env.DATABASE_URL;
 
-  const client = new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  });
+  const client = new PrismaClient(
+    isWorker
+      ? {
+          datasources: { db: { url: connectionString } },
+          log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+        }
+      : {
+          adapter: new PrismaNeon({ connectionString: connectionString! }),
+          log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+        }
+  );
 
   return client.$extends(auditExtension).$extends({
     query: {

@@ -2,6 +2,7 @@ export { getConnection, closeConnection } from './connection';
 export { closeAllQueues } from './queues';
 export { enqueue } from './enqueue';
 export { JobType, QUEUES } from './types';
+export { wrapProcessor, createAppWorker } from './workerUtils';
 export type {
   QueueName,
   JobPayload,

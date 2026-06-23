@@ -27,6 +27,7 @@ const child = spawn('npx', ['tsx', workerEntry], {
   env: {
     ...process.env,
     NODE_ENV: process.env.NODE_ENV || 'production',
+    IS_WORKER: 'true',
   },
   shell: true,
 });

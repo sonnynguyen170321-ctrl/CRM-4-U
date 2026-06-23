@@ -18,6 +18,7 @@
 - 2026-06-23 — P0.1: Lead list AND-compose fix already applied to codebase (found during verification). No additional changes needed.
 - 2026-06-23 — P0.2–P0.11: Completed entire workflow correctness phase. Added timezone boundary helper, lead access validations, soft archiving on delete, task completion CAS, and Topbar role fencing. Verified with passing Vitest tests.
 - 2026-06-23 — P1.0: Reconciled database drift. Created and applied migration for Tenant, tenantId, and AiMemory drift. Modified seed.ts to upsert default-tenant first, and verified database seed and tests.
+- 2026-06-23 — P2: Addressed BullMQ foundation gaps by integrating JobRun lifecycle database tracking into the enqueuer and base worker wrappers. Automatically switch Prisma client to TCP connection via DIRECT_URL in worker processes. Verified with 4 new Vitest tests.
 - 2026-06-23 — P2: BullMQ foundation built. Installed `bullmq` + `ioredis`. Created `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`. Created `workers/{index,healthcheck}.ts`. Created `scripts/{worker-dev,worker-start}.cjs`. Updated `package.json` scripts + `.env.example` with `REDIS_URL`.
 
 ## How to resume (any machine)

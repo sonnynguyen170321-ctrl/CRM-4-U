@@ -21,6 +21,7 @@ const child = spawn(runtime.shift(), runtime, {
   env: {
     ...process.env,
     NODE_ENV: process.env.NODE_ENV || 'development',
+    IS_WORKER: 'true',
   },
   shell: true,
 });

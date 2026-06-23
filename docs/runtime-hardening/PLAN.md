@@ -97,8 +97,8 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 
 ### P2 — BullMQ foundation
 - [x] Install `bullmq` + `ioredis`; create `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`, `workers/{index,healthcheck}.ts`, `scripts/{worker-dev,worker-start}.cjs`.
-- [ ] `lib/workflows/*` — workflow definitions for multi-step processes.
-- [ ] **Workers use `DIRECT_URL`** (TCP). Queues, default job options, `maintenance.healthcheck` smoke.
+- [x] `lib/workflows/*` — workflow definitions for multi-step processes.
+- [x] **Workers use `DIRECT_URL`** (TCP). Queues, default job options, `maintenance.healthcheck` smoke.
 
 ### P3 — Sequence worker
 - [ ] Jobs `enroll/advance/pause/unenroll/rebuild`; enroll creates `SequenceEnrollment` (one-active via P1.5 index); advance = CAS on `currentStep`; clone-on-edit when active enrollments exist.

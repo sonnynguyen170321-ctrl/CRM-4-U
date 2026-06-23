@@ -1,15 +1,9 @@
 import { Worker } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
-import { getConnection } from '@/lib/bullmq/connection';
-
-const DIRECT_URL = process.env.DIRECT_URL || process.env.DATABASE_URL!;
-
-const prisma = new PrismaClient({
-  datasources: { db: { url: DIRECT_URL } },
-});
+import { prisma } from '@/lib/prisma';
+import { createAppWorker } from '@/lib/bullmq';
 
 export function createHealthcheckWorker(): Worker {
-  const worker = new Worker(
+  return createAppWorker(
     'maintenance',
     async (job) => {
       if (job.name !== 'maintenance.healthcheck') return;
@@ -34,20 +28,12 @@ export function createHealthcheckWorker(): Worker {
       });
 
       console.log(`[worker:healthcheck] redis=${redisOk === 'PONG' ? 'OK' : 'FAIL'} db=${dbOk ? 'OK' : 'FAIL'} ${elapsed}ms`);
+      return { success: true, elapsedMs: elapsed };
     },
-    {
-      connection: getConnection(),
-      concurrency: 1,
-    },
+    { concurrency: 1 }
   );
-
-  worker.on('failed', (job, err) => {
-    console.error(`[worker:healthcheck] job ${job?.id} failed:`, err.message);
-  });
-
-  return worker;
 }
 
 export async function closeHealthcheck(): Promise<void> {
-  await prisma.$disconnect();
+  // Global prisma client connection is managed by standard app lifecycle
 }

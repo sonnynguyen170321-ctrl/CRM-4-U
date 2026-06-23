@@ -3,6 +3,8 @@ import type { JobsOptions } from 'bullmq';
 import { jobQueue, type JobPayload, type JobType } from './types';
 import { DEFAULT_JOB_OPTIONS, JOB_OPTIONS } from './jobOptions';
 import { sequenceQueue, emailQueue, importQueue, syncQueue, maintenanceQueue } from './queues';
+import { prisma } from '@/lib/prisma';
+import { tenantStorage } from '@/lib/tenant-context';
 
 function resolveQueue(jobType: JobType) {
   const queueName = jobQueue(jobType);
@@ -35,22 +37,63 @@ export async function enqueue<T extends JobType>(
 ): Promise<string> {
   const queue = resolveQueue(jobType);
   const tenantId = opts.tenantId || 'default-tenant';
+  const dedupeKey = opts.dedupeKey || buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>);
+
   const jobOptions: JobsOptions = {
     ...DEFAULT_JOB_OPTIONS,
     ...JOB_OPTIONS[jobType],
     delay: opts.delay,
     priority: opts.priority,
     deduplication: {
-      id: opts.dedupeKey || buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>),
+      id: dedupeKey,
       ttl: 86400 * 7,
     },
   };
   if (opts.jobId) {
     jobOptions.deduplication = undefined;
   }
+
+  // 1. Create or update the JobRun record in Postgres to track progress durable mirror
+  const jobRun = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+    return prisma.jobRun.upsert({
+      where: { dedupeKey },
+      create: {
+        queueName: jobQueue(jobType),
+        jobName: jobType,
+        dedupeKey,
+        status: 'queued',
+        tenantId,
+        maxAttempts: jobOptions.attempts || 3,
+      },
+      update: {
+        status: 'queued',
+        attempts: 0,
+        enqueuedAt: new Date(),
+        startedAt: null,
+        completedAt: null,
+        failedReason: null,
+        result: null,
+        progress: null,
+      },
+    });
+  });
+
+  const resolvedJobId = opts.jobId || jobRun.id;
+
   const job = await queue.add(jobType, payload, {
     ...jobOptions,
-    jobId: opts.jobId,
+    jobId: resolvedJobId,
   });
+
+  // 2. Update JobRun with the actual enqueued BullMQ job ID
+  await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+    await prisma.jobRun.update({
+      where: { id: jobRun.id },
+      data: {
+        bullJobId: job.id,
+      },
+    });
+  });
+
   return job.id!;
 }

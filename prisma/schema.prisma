@@ -123,7 +123,7 @@ model User {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  tenantId  String @default("default-tenant")
+  tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assignedLeads  Lead[]         @relation("LeadAssignee")
@@ -154,7 +154,7 @@ model Client {
   status       ClientStatus @default(active)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  tenantId     String @default("default-tenant")
+  tenantId     String
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   campaigns Campaign[]
@@ -174,7 +174,7 @@ model Campaign {
   endDate        DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  tenantId       String @default("default-tenant")
+  tenantId       String
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   leads              Lead[]
@@ -190,7 +190,7 @@ model CampaignSdr {
   userId     String
   campaign   Campaign @relation(fields: [campaignId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
-  tenantId   String @default("default-tenant")
+  tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([campaignId, userId])
@@ -230,7 +230,7 @@ model Lead {
   emailReplyCount Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  tenantId        String @default("default-tenant")
+  tenantId        String
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   normalizedEmail    String?
   normalizedPhone    String?
@@ -270,7 +270,7 @@ model Sequence {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  tenantId    String @default("default-tenant")
+  tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   steps               SequenceStep[]
@@ -294,7 +294,7 @@ model SequenceStep {
   instructions String?
   autoComplete Boolean  @default(false)
   version      Int      @default(1)
-  tenantId     String @default("default-tenant")
+  tenantId     String
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([sequenceId, order])
@@ -326,7 +326,7 @@ model Task {
   priority     TaskPriority @default(medium)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  tenantId     String @default("default-tenant")
+  tenantId     String
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
@@ -350,7 +350,7 @@ model Template {
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  tenantId    String @default("default-tenant")
+  tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   sequenceSteps    SequenceStep[]
@@ -370,7 +370,7 @@ model AbTestVariant {
   sentCount  Int      @default(0)
   replyCount Int      @default(0)
   createdAt  DateTime @default(now())
-  tenantId   String @default("default-tenant")
+  tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
@@ -389,7 +389,7 @@ model Note {
   isPinned    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  tenantId    String @default("default-tenant")
+  tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
@@ -408,7 +408,7 @@ model Reminder {
   dueAt       DateTime
   isDismissed Boolean   @default(false)
   createdAt   DateTime  @default(now())
-  tenantId    String @default("default-tenant")
+  tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -431,7 +431,7 @@ model Activity {
   metadata    Json?
   description String?
   createdAt   DateTime     @default(now())
-  tenantId    String @default("default-tenant")
+  tenantId    String
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -466,7 +466,7 @@ model EmailAccount {
   hourlySendWindow Int           @default(0)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  tenantId         String @default("default-tenant")
+  tenantId         String
   tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   outboundMessages OutboundMessage[]
 
@@ -486,7 +486,7 @@ model Notification {
   linkTo    String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  tenantId  String @default("default-tenant")
+  tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -507,7 +507,7 @@ model AuditLog {
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
-  tenantId      String @default("default-tenant")
+  tenantId      String
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -533,7 +533,7 @@ model JobRun {
   enqueuedAt   DateTime  @default(now())
   startedAt    DateTime?
   completedAt  DateTime?
-  tenantId     String    @default("default-tenant")
+  tenantId     String
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([queueName, status])
@@ -585,7 +585,7 @@ model SuppressionEntry {
   campaign   Campaign? @relation(fields: [campaignId], references: [id])
   reason     String    // hard_bounce | spam | manual | unsubscribed
   createdAt  DateTime  @default(now())
-  tenantId   String    @default("default-tenant")
+  tenantId   String
   tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([email])
@@ -632,7 +632,7 @@ model ImportBatch {
   errorFile  String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-  tenantId   String    @default("default-tenant")
+  tenantId   String
   tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   importRows ImportRow[]
 
@@ -653,7 +653,7 @@ model ImportRow {
   leadId    String?
   lead      Lead?    @relation(fields: [leadId], references: [id])
   createdAt DateTime @default(now())
-  tenantId  String   @default("default-tenant")
+  tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
@@ -669,7 +669,7 @@ model AiMemory {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   memory    String
   createdAt DateTime @default(now())
-  tenantId  String   @default("default-tenant")
+  tenantId  String
 
   @@index([userId])
   @@index([tenantId])
