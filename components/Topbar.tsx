@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useAppContext } from '@/context/AppContext';
+import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
 
 interface Notification {
   id: string;
@@ -48,6 +49,8 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [bellOpen, setBellOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
@@ -75,11 +78,28 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
       .then(() => fetchBellData())
       .catch(() => fetchBellData());
 
+    // Notification mute preferences (per-browser); re-read when Settings updates them.
+    setNotifPrefs(readNotifPrefs());
+    const syncPrefs = () => setNotifPrefs(readNotifPrefs());
+
+    // Avatar (server-persisted); refresh live when the profile is saved in Settings.
+    const loadAvatar = () => {
+      fetch('/api/settings')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setAvatarUrl(d?.avatarUrl ?? null))
+        .catch(() => {});
+    };
+    loadAvatar();
+
     window.addEventListener('crm:reminder-created', fetchBellData);
     window.addEventListener('crm:notifications-updated', fetchBellData);
+    window.addEventListener(NOTIF_PREFS_EVENT, syncPrefs);
+    window.addEventListener('crm:profile-updated', loadAvatar);
     return () => {
       window.removeEventListener('crm:reminder-created', fetchBellData);
       window.removeEventListener('crm:notifications-updated', fetchBellData);
+      window.removeEventListener(NOTIF_PREFS_EVENT, syncPrefs);
+      window.removeEventListener('crm:profile-updated', loadAvatar);
     };
   }, []);
 
@@ -128,13 +148,16 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
     return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('keydown', handleKey); };
   }, []);
 
+  // Hide notification types the user muted in Settings (always-on events are never muted).
+  const visibleNotifications = notifications.filter((n) => !isMuted(n.type, notifPrefs));
+
   const unreadCount =
-    notifications.filter((n) => !n.isRead).length +
+    visibleNotifications.filter((n) => !n.isRead).length +
     reminders.filter((r) => !r.isDismissed && new Date(r.dueAt) <= new Date()).length;
 
   // Unified bell items sorted newest-first (reminders by dueAt, notifications by createdAt)
   const bellItems: BellItem[] = [
-    ...notifications.map((n) => ({ kind: 'notification' as const, ...n })),
+    ...visibleNotifications.map((n) => ({ kind: 'notification' as const, ...n })),
     ...reminders.filter((r) => !r.isDismissed).map((r) => ({ kind: 'reminder' as const, ...r })),
   ].sort((a, b) => {
     const aDate = a.kind === 'notification' ? a.createdAt : a.dueAt;
@@ -460,8 +483,13 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             aria-haspopup="menu"
             className="flex items-center gap-2 hover:bg-card-border/30 px-2 py-1.5 rounded-lg transition-colors duration-150 focus-ring"
           >
-            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase">
-              {displayInitial}
+            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase overflow-hidden">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
             </div>
             <div className="flex flex-col text-left">
               <span className="text-xs font-semibold text-text-primary leading-tight">{displayName}</span>
