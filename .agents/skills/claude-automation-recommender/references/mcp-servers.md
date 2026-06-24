@@ -1,83 +1,39 @@
-# MCP Server Recommendations
+# MCP Server Recommendations (Customized for Telestar CRM)
 
-MCP (Model Context Protocol) servers extend Claude's capabilities by connecting to external tools and services.
-
-**Note**: These are common MCP servers. Use web search to find MCP servers specific to the codebase's services and integrations.
-
-## Setup & Team Sharing
-
-**Connection methods:**
-1. **Project config** (`.mcp.json`) - Available only in that directory
-2. **Global config** (`~/.claude.json`) - Available across all projects
-3. **Checked-in `.mcp.json`** - Available to entire team (recommended!)
-
-**Tip**: Check `.mcp.json` into git so your whole team gets the same MCP servers.
-
-**Debugging**: Use `claude --mcp-debug` to identify configuration issues.
-
-## Documentation & Knowledge
-
-### context7
-**Best for**: Projects using popular libraries/SDKs where you want Claude to code with up-to-date documentation
-
-| Recommend When | Examples |
-|----------------|----------|
-| Using React, Vue, Angular | Frontend frameworks |
-| Using Express, FastAPI, Django | Backend frameworks |
-| Using Prisma, Drizzle | ORMs |
-| Using Stripe, Twilio, SendGrid | Third-party APIs |
-| Using AWS SDK, Google Cloud | Cloud SDKs |
-| Using LangChain, OpenAI SDK | AI/ML libraries |
-
-**Value**: Claude fetches live documentation instead of relying on training data, reducing hallucinated APIs and outdated patterns.
+MCP (Model Context Protocol) servers extend Claude's capabilities by connecting to external tools and services. Based on the Telestar CRM's tech stack (Next.js, Prisma, BullMQ, Redis, PostgreSQL), these are the most relevant MCP servers.
 
 ---
 
-## Browser & Frontend
+## 🚀 Recommended CRM Database & Queue Servers
 
-### Playwright MCP
-**Best for**: Frontend projects needing browser automation, testing, or screenshots
+### 1. Database / PostgreSQL MCP
+*   **Best for**: Directly querying and inspecting the CRM's PostgreSQL schema and data.
+*   **Recommend when**: Working on database-heavy tasks, verifying migration data backfills (e.g. `Account` or `Contact` schema migrations), or debugging lead sync states.
+*   **Value**: Allows Claude to safely run SQL queries, view table relations, and verify DB constraints without manual exports.
 
-| Recommend When | Examples |
-|----------------|----------|
-| React/Vue/Angular app | UI component testing |
-| E2E tests needed | User flow validation |
-| Visual regression testing | Screenshot comparisons |
-| Debugging UI issues | See what user sees |
-| Form testing | Multi-step workflows |
+### 2. Prisma Schema MCP
+*   **Best for**: Inspecting and linting `prisma/schema.prisma` relations.
+*   **Recommend when**: Adding columns, updating enums (e.g., adding a new `ActivityType` or `TaskType`), or refactoring relational mapping.
 
-**Value**: Claude can interact with your running app, take screenshots, fill forms, and verify UI behavior.
-
-### Puppeteer MCP
-**Best for**: Headless browser automation, web scraping
-
-| Recommend When | Examples |
-|----------------|----------|
-| PDF generation from HTML | Report generation |
-| Web scraping tasks | Data extraction |
-| Headless testing | CI environments |
+### 3. Redis / Queue Monitor MCP
+*   **Best for**: Inspecting BullMQ jobs inside your Redis instance.
+*   **Recommend when**: Debugging background sequence processing, import worker delays, or checking queue health states.
+*   **Value**: Inspect queue depths, active jobs, stalled jobs, and error logs directly inside the terminal.
 
 ---
 
-## Databases
+## 🎨 Browser & E2E Testing Servers
 
-### Supabase MCP
-**Best for**: Projects using Supabase for backend/database
+### 4. Playwright MCP (Pre-configured in `.playwright-mcp`)
+*   **Best for**: Direct browser automation, route verification, and taking visual screenshots of the CRM UI.
+*   **Recommend when**: Making changes to layouts, verifying role-based route permissions (e.g., SDR vs. Director dashboard views), or checking visual UI regressions.
+*   **Value**: Connects Claude to local chromium instances to click, type, and verify page states programmatically.
 
-| Recommend When | Examples |
-|----------------|----------|
-| Supabase project detected | `@supabase/supabase-js` in deps |
-| Auth + database needs | User management apps |
-| Real-time features | Live data sync |
+---
 
-**Value**: Claude can query tables, manage auth, and interact with Supabase storage directly.
+## 📚 Documentation & Reference lookup
 
-### Convex MCP
-**Best for**: Projects using Convex as the backend (reactive database + server functions + auth + storage + scheduling, all on one platform)
-
-| Recommend When | Examples |
-|----------------|----------|
-| Convex project detected | `convex` in deps, `convex/` directory present, `convex.json` at repo root |
-| Real-time / reactive UI | `useQuery` / `useMutation` / `useAction` from `convex/react` |
-| Mobile + Convex | `convex/react-native` in deps |
-| AI / chat / agent features | `convex` vector database or background actions |
+### 5. context7
+*   **Best for**: Looking up modern framework documentations where API signatures change frequently.
+*   **Recommend when**: Coding Next.js App Router endpoints, working with Prisma client updates, or implementing BullMQ connections.
+*   **Value**: Pulls live API specs directly, preventing compilation errors caused by outdated LLM training data.

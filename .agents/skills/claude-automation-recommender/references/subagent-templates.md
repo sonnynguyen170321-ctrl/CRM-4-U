@@ -1,68 +1,31 @@
-# Subagent Recommendations
+# Subagent Templates (Customized for Telestar CRM)
 
-Subagents are specialized Claude instances that run in parallel, each with their own context window and tool access. They're ideal for focused reviews, analysis, or generation tasks.
-
-**Note**: These are common patterns. Design custom subagents based on the codebase's specific review and analysis needs.
-
-## Code Review Agents
-
-### code-reviewer
-**Best for**: Automated code quality checks on large codebases
-
-| Recommend When | Detection |
-|----------------|-----------|
-| Large codebase (>500 files) | File count |
-| Frequent code changes | Active development |
-| Team wants consistent review | Quality focus |
-
-**Value**: Runs code review in parallel while you continue working
-**Model**: sonnet (balanced quality/speed)
-**Tools**: Read, Grep, Glob, Bash
+Subagents are specialized Claude instances designed to run in parallel with custom context instructions. In the Telestar CRM, subagents are customized to enforce critical database, worker, and security constraints.
 
 ---
 
-### security-reviewer
-**Best for**: Security-focused code review
+## 🏗 CRM-Specific Reviewer Agents
 
-| Recommend When | Detection |
-|----------------|-----------|
-| Auth code present | `auth/`, `login`, `session` patterns |
-| Payment processing | `stripe`, `payment`, `billing` patterns |
-| User data handling | `user`, `profile`, `pii` patterns |
-| API keys in code | Environment variable patterns |
+### 1. database-migration-reviewer
+*   **Best for**: Reviewing proposed Prisma schema changes and database migrations.
+*   **Context/Rules**:
+    *   Neon HTTP driver has **no interactive transactions** (workers must use `DIRECT_URL`).
+    *   Tenant Scoping: Verify that all data operations obey the tenant storage model (`lib/tenant-inject.ts` or `prisma` client wrapper with session tenant context).
+    *   Ensure backfill scripts are provided for major column changes (e.g. splitting columns into `Account` or `Contact` models).
+*   **Tools**: Read, Grep, Glob (Read-only for security review).
 
-**Value**: Catches OWASP vulnerabilities, auth issues, data exposure
-**Model**: sonnet
-**Tools**: Read, Grep, Glob (read-only for safety)
+### 2. bullmq-worker-reviewer
+*   **Best for**: Designing and auditing BullMQ job queues and worker handlers.
+*   **Context/Rules**:
+    *   BullMQ workers run on a **separate always-on host + Redis**, never on Vercel.
+    *   Ensure background worker DB clients bypass RLS when necessary but respect tenant contexts.
+    *   Review token usage: OAuth tokens must be encrypted on save using `lib/crypto.ts` and decrypted on read inside the email workers.
+*   **Tools**: Read, Grep, Glob.
 
----
-
-### test-writer
-**Best for**: Generating comprehensive test coverage
-
-| Recommend When | Detection |
-|----------------|-----------|
-| Low test coverage | Few test files vs source files |
-| Test suite exists | `tests/`, `__tests__/` present |
-| Testing framework configured | jest, pytest, vitest in deps |
-
-**Value**: Generates tests matching project conventions
-**Model**: sonnet
-**Tools**: Read, Write, Grep, Glob
-
----
-
-## Specialized Agents
-
-### api-documenter
-**Best for**: API documentation generation
-
-| Recommend When | Detection |
-|----------------|-----------|
-| REST endpoints | Express routes, FastAPI paths |
-| GraphQL schema | `.graphql` files present |
-| Need public API docs | Client SDK generation |
-
-**Value**: Generates structured, compliant documentation
-**Model**: sonnet
-**Tools**: Read, Write, Grep, Glob
+### 3. role-fencing-reviewer
+*   **Best for**: Auditing API routes and page controls for authorization boundaries.
+*   **Context/Rules**:
+    *   The CRM supports 5 roles: `director`, `floor_manager`, `team_lead`, `sdr`, and `leadgen`.
+    *   Review all new API endpoints under `app/api/` to ensure they use `requireAuth()`, `requireManager()`, or explicit `canAccessLead()` checks.
+    *   Verify edge-level role guards in `proxy.ts`.
+*   **Tools**: Read, Grep.
