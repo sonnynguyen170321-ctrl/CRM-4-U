@@ -13,7 +13,7 @@ interface CallDialerModalProps {
   onHangUp: (notes: string, outcome: string) => void;
 }
 
-// Helper to synthesize DTMF tones using Web Audio API
+// Helper to synthesize DTMF tones locally using Web Audio API for premium UX feedback
 const playDtmfTone = (digit: string) => {
   if (typeof window === 'undefined') return;
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -38,8 +38,8 @@ const playDtmfTone = (digit: string) => {
     osc1.frequency.value = freqs[0];
     osc2.frequency.value = freqs[1];
 
-    gain.gain.setValueAtTime(0.08, ctx.currentTime); // comfortable volume level
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12); // quick decay
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
 
     osc1.connect(gain);
     osc2.connect(gain);
@@ -63,74 +63,106 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  // Twilio Connection references
-  const [device, setDevice] = useState<any>(null);
-  const [activeCall, setActiveCall] = useState<any>(null);
-  const deviceRef = useRef<any>(null);
-  const callRef = useRef<any>(null);
+  // SIP.js WebRTC references
+  const [userAgent, setUserAgent] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
+  
+  const userAgentRef = useRef<any>(null);
+  const sessionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize Twilio Device and start Call
+  // Initialize SIP.js Device and place call
   useEffect(() => {
-    let activeDevice: any = null;
+    let activeUA: any = null;
 
-    async function initTwilio() {
+    async function initSIP() {
       try {
-        const tokenRes = await fetch('/api/dialer/token');
-        if (!tokenRes.ok) {
-          throw new Error('Failed to retrieve voice access token');
+        // Fetch PBX connection configuration from backend
+        const configRes = await fetch('/api/dialer/config');
+        if (!configRes.ok) {
+          throw new Error('Failed to retrieve SIP dialer configuration');
         }
-        const { token } = await tokenRes.json();
-        if (!token) {
-          throw new Error('No voice token returned from server');
+        const config = await configRes.json();
+        
+        const { websocketUrl, domain, username, password } = config;
+        if (!websocketUrl || !domain || !username || !password) {
+          throw new Error('Incomplete SIP configuration returned from server');
         }
 
-        // Dynamically load Twilio Voice SDK on client to avoid SSR issues
-        const { Device } = await import('@twilio/voice-sdk');
+        // Dynamically import SIP.js to avoid SSR errors during Next.js build
+        const { UserAgent, Inviter } = await import('sip.js');
 
-        const newDevice = new Device(token, {
-          logLevel: 'debug',
-          codecPreferences: ['opus', 'pcmu'] as any,
+        // Create User Agent instance
+        const newUA = new UserAgent({
+          uri: UserAgent.makeURI(`sip:${username}@${domain}`),
+          transportOptions: {
+            wsServer: websocketUrl
+          },
+          authorizationUsername: username,
+          authorizationPassword: password,
+          gracefulShutdown: true,
+          logLevel: 'error'
         });
 
-        await newDevice.register();
-        activeDevice = newDevice;
-        setDevice(newDevice);
-        deviceRef.current = newDevice;
+        // Start User Agent
+        await newUA.start();
+        activeUA = newUA;
+        setUserAgent(newUA);
+        userAgentRef.current = newUA;
 
-        const targetPhone = lead.phone ? lead.phone.trim() : '';
+        // Construct destination URI
+        const targetPhone = lead.phone ? lead.phone.replace(/[^0-9+]/g, '') : '';
         if (!targetPhone) {
-          console.warn('No target phone number provided');
+          console.warn('No valid phone number provided for dialing');
           return;
         }
 
-        // Connect the WebRTC call session
-        const call = await newDevice.connect({
-          params: { To: targetPhone }
+        const targetUri = UserAgent.makeURI(`sip:${targetPhone}@${domain}`);
+        if (!targetUri) {
+          throw new Error('Failed to construct destination URI');
+        }
+
+        // Create Inviter (Session representing outbound call)
+        const inviter = new Inviter(newUA, targetUri, {
+          sessionDescriptionHandlerOptions: {
+            constraints: { audio: true, video: false }
+          }
         });
 
-        setActiveCall(call);
-        callRef.current = call;
+        setSession(inviter);
+        sessionRef.current = inviter;
 
-        // Setup call event listeners
-        call.on('accept', () => {
-          setCallState('connected');
+        // Monitor session state changes
+        inviter.stateChange.addListener((state: any) => {
+          if (state === 'Established') {
+            setCallState('connected');
+            
+            // Extract remote audio stream track and route to browser audio output
+            const sdh = inviter.sessionDescriptionHandler;
+            const peerConnection = sdh ? (sdh as any).peerConnection : null;
+            if (peerConnection) {
+              const remoteStream = new MediaStream();
+              peerConnection.getReceivers().forEach((receiver: any) => {
+                if (receiver.track) {
+                  remoteStream.addTrack(receiver.track);
+                }
+              });
+              
+              if (audioRef.current) {
+                audioRef.current.srcObject = remoteStream;
+                audioRef.current.play().catch(e => console.warn('Audio play failed:', e));
+              }
+            }
+          } else if (state === 'Terminated') {
+            setCallState('completed');
+          }
         });
 
-        call.on('disconnect', () => {
-          setCallState('completed');
-        });
-
-        call.on('reject', () => {
-          setCallState('completed');
-        });
-
-        call.on('error', (err: any) => {
-          console.error('Twilio Voice connection error:', err);
-          setCallState('completed');
-        });
+        // Trigger the SIP invite to start calling
+        await inviter.invite();
 
       } catch (err) {
-        console.error('Twilio initialization failed, falling back to simulated session:', err);
+        console.error('SIP.js initialization failed, falling back to simulated session:', err);
         // BPO Demo Graceful Fallback
         const timer = setTimeout(() => {
           setCallState('connected');
@@ -139,21 +171,24 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
       }
     }
 
-    initTwilio();
+    initSIP();
 
     return () => {
-      // Disconnect call and clean up device on component unmount
+      // Disconnect session and stop User Agent on component unmount
       try {
-        if (callRef.current) {
-          callRef.current.disconnect();
-        }
-        if (activeDevice) {
-          if (typeof activeDevice.destroy === 'function') {
-            activeDevice.destroy();
+        const currentSession = sessionRef.current;
+        if (currentSession) {
+          if (currentSession.state === 'Establishing' || currentSession.state === 'Initial') {
+            currentSession.cancel();
+          } else if (currentSession.state === 'Established') {
+            currentSession.bye();
           }
         }
+        if (activeUA) {
+          activeUA.stop();
+        }
       } catch (e) {
-        console.warn('Error during Twilio client cleanup:', e);
+        console.warn('Error during SIP.js client cleanup:', e);
       }
     };
   }, [lead.phone]);
@@ -176,10 +211,18 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
   };
 
   const toggleMute = () => {
-    if (callRef.current) {
-      const newMuteState = !isMuted;
-      callRef.current.mute(newMuteState);
-      setIsMuted(newMuteState);
+    if (sessionRef.current) {
+      const sdh = sessionRef.current.sessionDescriptionHandler;
+      const pc = sdh ? (sdh as any).peerConnection : null;
+      if (pc) {
+        // Toggle the WebRTC audio send track directly (100% reliable in browser WebRTC)
+        pc.getSenders().forEach((sender: any) => {
+          if (sender.track && sender.track.kind === 'audio') {
+            sender.track.enabled = isMuted; // enable if currently muted, disable if unmuted
+          }
+        });
+      }
+      setIsMuted(!isMuted);
     } else {
       setIsMuted(!isMuted);
     }
@@ -187,15 +230,34 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
 
   const handleKeypadPress = (digit: string) => {
     playDtmfTone(digit);
-    if (callRef.current) {
-      callRef.current.sendDigits(digit);
+    
+    // Send DTMF using WebRTC's native RTCDtmfSender (standards-compliant RFC 2833)
+    if (sessionRef.current) {
+      const sdh = sessionRef.current.sessionDescriptionHandler;
+      const pc = sdh ? (sdh as any).peerConnection : null;
+      if (pc) {
+        pc.getSenders().forEach((sender: any) => {
+          if (sender.track && sender.track.kind === 'audio' && sender.dtmf) {
+            sender.dtmf.insertDTMF(digit, 100, 70);
+          }
+        });
+      }
     }
   };
 
   const handleHangUpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (callRef.current) {
-      callRef.current.disconnect();
+    try {
+      const currentSession = sessionRef.current;
+      if (currentSession) {
+        if (currentSession.state === 'Establishing' || currentSession.state === 'Initial') {
+          currentSession.cancel();
+        } else if (currentSession.state === 'Established') {
+          currentSession.bye();
+        }
+      }
+    } catch (err) {
+      console.error('Error hanging up SIP session:', err);
     }
     const duration = formatTime(seconds);
     const compiledNotes = `Phone Call (${duration}).\nOutcome: ${callOutcome}\nNotes: ${callNote}`;
@@ -204,6 +266,9 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Hidden browser audio playback element for WebRTC sound stream */}
+      <audio ref={audioRef} autoPlay />
+
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
@@ -237,7 +302,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
 
           <div className="mt-3 text-xs font-mono font-bold flex items-center gap-1.5">
             {callState === 'dialing' ? (
-              <span className="text-text-muted animate-pulse">Dialing Campaign Server...</span>
+              <span className="text-text-muted animate-pulse">Dialing PBX Server...</span>
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
@@ -346,4 +411,3 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
     </div>
   );
 }
-
