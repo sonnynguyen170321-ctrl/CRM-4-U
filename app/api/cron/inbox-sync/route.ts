@@ -4,7 +4,6 @@ import { enqueueEmailSyncWorkflow } from '@/lib/workflows/email';
 import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 const ACCOUNTS_PER_RUN = 10;
 const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];

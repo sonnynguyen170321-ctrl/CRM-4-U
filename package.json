@@ -13,7 +13,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "deploy": "vercel",
+    "analyze": "ANALYZE=true next build",
     "worker:dev": "node scripts/worker-dev.cjs",
     "worker:start": "node scripts/worker-start.cjs",
     "worker:healthcheck": "tsx -e \"require('dotenv').config(); const {enqueue,JobType}=require('./lib/bullmq'); enqueue(JobType.MAINTENANCE_HEALTHCHECK,{startedAt:new Date().toISOString()}).then(id=>console.log('enqueued',id)).catch(console.error)\""
@@ -23,9 +23,9 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@neondatabase/serverless": "^1.1.0",
-    "@prisma/adapter-neon": "^7.8.0",
+    "@next/bundle-analyzer": "^16.2.9",
     "@prisma/client": "^6.2.1",
+    "@tanstack/react-query": "^5.101.1",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.79.1",
     "googleapis": "^173.0.0",

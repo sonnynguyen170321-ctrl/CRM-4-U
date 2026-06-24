@@ -3,12 +3,12 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { scoreLead } from '@/lib/ai/scoring';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createLeadSchema, leadStage, priority as prioritySchema } from '@/lib/validation/schemas';
 import { buildLeadListWhere } from '@/lib/leads/listQuery';
 import { handleApiError } from '@/lib/api/errors';
 import { normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
+import { scoreLead } from '@/lib/ai/scoring';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -75,23 +75,18 @@ export async function GET(req: NextRequest) {
 
     const atRiskCutoff = new Date(Date.now() - 3 * 86400000);
 
-    const enriched = leads.map((l: any) => {
-      const aiScore = scoreLead({ ...l, activities: [] });
-      return {
-        ...l,
-        priority: l.crmPriorityScore,
-        nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
-        nextTaskType: l.tasks?.[0]?.type ?? null,
-        atRisk: (l.tasks ?? []).some(
-          (t: any) => t.sequenceId && new Date(t.dueDate) < atRiskCutoff
-        ),
-        aiScore: aiScore.score,
-        aiLabel: aiScore.label,
-        aiInsights: aiScore.insights,
-        aiRecommendation: aiScore.recommendation,
-        tasks: undefined,
-      };
-    });
+    const enriched = leads.map((l: any) => ({
+      ...l,
+      priority: l.crmPriorityScore,
+      nextTaskDue: l.tasks?.[0]?.dueDate ?? null,
+      nextTaskType: l.tasks?.[0]?.type ?? null,
+      atRisk: (l.tasks ?? []).some(
+        (t: any) => t.sequenceId && new Date(t.dueDate) < atRiskCutoff
+      ),
+      aiScore: l.engagementScore,
+      aiLabel: l.crmPriorityScore === 'hot' ? 'hot' : l.crmPriorityScore === 'warm' ? 'warm' : 'cold',
+      tasks: undefined,
+    }));
 
     return NextResponse.json(enriched);
   } catch (err) {

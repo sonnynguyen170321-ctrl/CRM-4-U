@@ -2,13 +2,15 @@
 
 import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import NewLeadModal from './NewLeadModal';
-import NewTaskModal from './NewTaskModal';
-import NewReminderModal from './NewReminderModal';
-import NewCampaignModal from './NewCampaignModal';
 import DesktopOnlyGate from './DesktopOnlyGate';
+
+const NewLeadModal = dynamic(() => import('./NewLeadModal'), { ssr: false });
+const NewTaskModal = dynamic(() => import('./NewTaskModal'), { ssr: false });
+const NewReminderModal = dynamic(() => import('./NewReminderModal'), { ssr: false });
+const NewCampaignModal = dynamic(() => import('./NewCampaignModal'), { ssr: false });
 import { useAppContext } from '@/context/AppContext';
 
 // Keep the Neon DB warm while the app is actively in use. Pinging every 4 minutes

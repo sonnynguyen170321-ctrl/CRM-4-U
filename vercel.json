@@ -1,7 +1,0 @@
-{
-  "regions": ["sin1"],
-  "crons": [
-    { "path": "/api/cron/sequence-engine", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/inbox-sync", "schedule": "0 1 * * *" }
-  ]
-}

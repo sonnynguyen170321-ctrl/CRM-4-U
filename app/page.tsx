@@ -238,6 +238,25 @@ export default function DashboardPage() {
       setMeetingPrompt(task);
     }
 
+    if (outcome === 'callback_requested') {
+      const due = new Date();
+      due.setDate(due.getDate() + 1);
+      due.setHours(9, 0, 0, 0);
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: task.leadId,
+          type: 'phone',
+          title: `Callback — ${task.lead.firstName} ${task.lead.lastName}`,
+          description: 'Callback requested',
+          dueDate: due.toISOString(),
+          priority: 'high',
+        }),
+      });
+      showToast('Follow-up callback task created for tomorrow', 'success');
+    }
+
     if (outcome === 'wrong_number' || outcome === 'do_not_call') {
       const lead = task.lead;
       const existingTags: string[] = (lead as any).tags ?? [];
@@ -400,7 +419,7 @@ export default function DashboardPage() {
         {/* Task Hub */}
         <div className={`glass-card rounded-2xl overflow-hidden flex flex-col ${showStats ? 'col-span-2' : ''}`}>
           <div className="flex items-center px-5 py-4 border-b border-card-border bg-background/25 gap-2">
-            {(['today', 'overdue', 'yesterday'] as const).map((tab) => {
+            {(['today', 'yesterday', 'overdue'] as const).map((tab) => {
               const count =
                 tab === 'today' ? pendingTodayCount
                 : tab === 'overdue' ? overdueTasks.length
@@ -494,7 +513,7 @@ export default function DashboardPage() {
                           className="px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-600 hover:bg-green-500 hover:text-white rounded-lg transition-all flex items-center gap-1 text-xs font-bold active:scale-95"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          {['phone', 'linkedin', 'whatsapp'].includes(task.type) ? 'Log & Done' : 'Complete'}
+                          {['phone', 'linkedin', 'whatsapp'].includes(task.type) ? 'Log & Complete' : 'Complete'}
                         </button>
                         <button
                           onClick={() => handleSkip(task)}
@@ -738,7 +757,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* Phone outcome — 4 options */}
+            {/* Phone outcome — 9 options (SKILL.md §21) */}
             {loggingTask.type === 'phone' && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold font-mono text-text-muted uppercase block">
@@ -751,11 +770,22 @@ export default function DashboardPage() {
                 >
                   <option value="no_answer">No Answer</option>
                   <option value="voicemail_left">Voicemail Left</option>
-                  <option value="connected_meeting_booked">Connected — Meeting Booked 🎉</option>
+                  <option value="voicemail_not_left">Went to Voicemail — No Message</option>
+                  <option value="connected_interested">Connected — Interested</option>
                   <option value="connected_not_interested">Connected — Not Interested</option>
+                  <option value="connected_meeting_booked">Connected — Meeting Booked 🎉</option>
+                  <option value="callback_requested">Call Back Requested</option>
+                  <option value="wrong_number">Wrong Number</option>
+                  <option value="do_not_call">Do Not Call (Requested)</option>
                 </select>
                 {callOutcome === 'connected_meeting_booked' && (
                   <p className="text-xs text-emerald-500 font-mono">→ You'll be prompted to move this lead to Meeting Booked.</p>
+                )}
+                {callOutcome === 'callback_requested' && (
+                  <p className="text-xs text-brand-orange font-mono">→ A follow-up call task will be created for tomorrow.</p>
+                )}
+                {(callOutcome === 'wrong_number' || callOutcome === 'do_not_call') && (
+                  <p className="text-xs text-text-muted font-mono">→ The lead will be flagged.</p>
                 )}
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Plus,
   Search,
@@ -16,38 +16,14 @@ import Linkedin from '@/components/icons/Linkedin';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { canImportExport } from '@/lib/permissions';
+import { useLeads, useUsers, useSequences, useUpdateLeadStage } from '@/lib/hooks/useLeads';
+import type { Lead } from '@/lib/hooks/useLeads';
+import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 
-// Heavy, interaction-only components — loaded on demand so they don't bloat the
-// initial leads-page bundle. The panel/modal chunks fetch the first time a lead
-// is opened or "Add Lead" is clicked.
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
 const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
-
-interface Lead {
-  id: string;
-  firstName: string;
-  lastName: string;
-  company: string;
-  title: string;
-  email: string;
-  phone?: string;
-  linkedIn?: string;
-  stage: 'new' | 'sequence_active' | 'replied' | 'meeting_booked' | 'won' | 'lost';
-  priority: 'hot' | 'warm' | 'cold';
-  source?: string;
-  lastContactedAt?: string;
-  nextTaskDue?: string;
-  nextTaskType?: string | null;
-  sequenceId?: string | null;
-  atRisk?: boolean;
-  tags?: string[];
-  assignedTo?: { id: string; firstName: string; lastName: string };
-  aiScore?: number;
-  aiLabel?: 'hot' | 'warm' | 'cold';
-  aiRecommendation?: string;
-}
 
 // Module-scope constants (stable identity) so they can be omitted from useMemo deps.
 const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
@@ -192,21 +168,8 @@ export default function LeadsPage() {
   const { currentRole } = useAppContext();
   const { showToast } = useToast();
 
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
-
-  useEffect(() => {
-    const saved = localStorage.getItem('crm:defaultLeadView');
-    if (saved === 'table' || saved === 'kanban') setViewMode(saved);
-  }, []);
-
-  const handleSetViewMode = (mode: 'kanban' | 'table') => {
-    setViewMode(mode);
-    if (typeof window !== 'undefined') localStorage.setItem('crm:defaultLeadView', mode);
-  };
-
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -223,44 +186,36 @@ export default function LeadsPage() {
   const [bulkStage, setBulkStage] = useState('');
   const [bulkSdr, setBulkSdr] = useState('');
   const [bulkApplying, setBulkApplying] = useState(false);
-  const [sequences, setSequences] = useState<{ id: string; name: string }[]>([]);
   const [bulkSeqId, setBulkSeqId] = useState('');
   const [sortField, setSortField] = useState<'name' | 'company' | 'stage' | 'priority' | 'assignedTo' | 'lastContacted' | ''>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const filters = {
+    search: searchQuery || undefined,
+    stage: stageFilter,
+    priority: priorityFilter,
+    assignedTo: sdrFilter,
+    source: sourceFilter || undefined,
+    tag: tagFilter || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  };
+  const { data: leads = [], isLoading } = useLeads(filters);
+  const { data: users = [] } = useUsers();
+  const { data: sequences = [] } = useSequences();
+  const queryClient = useQueryClient();
+  const invalidateLeads = () => queryClient.invalidateQueries({ queryKey: ['leads'] });
+  const updateStageMutation = useUpdateLeadStage();
+
+  const handleSetViewMode = (mode: 'kanban' | 'table') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') localStorage.setItem('crm:defaultLeadView', mode);
+  };
 
   useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [searchQuery]);
-
-  const fetchLeads = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (debouncedSearch) params.set('search', debouncedSearch);
-    if (priorityFilter !== 'all') params.set('priority', priorityFilter);
-    if (stageFilter !== 'all') params.set('stage', stageFilter);
-    if (sdrFilter !== 'all') params.set('assignedTo', sdrFilter);
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (tagFilter) params.set('tag', tagFilter);
-    if (dateFrom) params.set('dateFrom', dateFrom);
-    if (dateTo) params.set('dateTo', dateTo);
-    const res = await fetch(`/api/leads?${params}`);
-    if (res.ok) {
-      const data = await res.json();
-      setLeads(Array.isArray(data) ? data : []);
-    }
-  }, [debouncedSearch, priorityFilter, stageFilter, sdrFilter, sourceFilter, tagFilter, dateFrom, dateTo]);
-
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
-
-  useEffect(() => {
-    const handler = () => fetchLeads();
-    window.addEventListener('crm:lead-created', handler);
-    return () => window.removeEventListener('crm:lead-created', handler);
-  }, [fetchLeads]);
+    const saved = localStorage.getItem('crm:defaultLeadView');
+    if (saved === 'table' || saved === 'kanban') setViewMode(saved);
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -270,19 +225,6 @@ export default function LeadsPage() {
     window.addEventListener('crm:open-lead', handler);
     return () => window.removeEventListener('crm:open-lead', handler);
   }, []);
-
-  useEffect(() => {
-    if (currentRole !== 'sdr') {
-      fetch('/api/users')
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => setUsers(Array.isArray(data) ? data : []))
-        .catch(() => {});
-    }
-    fetch('/api/sequences')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => setSequences(Array.isArray(data) ? data.map((s: any) => ({ id: s.id, name: s.name })) : []))
-      .catch(() => {});
-  }, [currentRole]);
 
   // useCallback gives these stable identities so the memoized LeadCard doesn't
   // re-render every time the parent re-renders.
@@ -305,17 +247,11 @@ export default function LeadsPage() {
       setIsDraggedOver((prev) => ({ ...prev, [colId]: false }));
       return;
     }
-    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: colId } : l)));
     setIsDraggedOver((prev) => ({ ...prev, [colId]: false }));
-    const res = await fetch(`/api/leads/${leadId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: colId }),
-    });
-    if (res.ok) {
+    try {
+      await updateStageMutation.mutateAsync({ leadId, stage: colId });
       showToast(`Moved to ${colId.replace(/_/g, ' ')}`, 'success');
-    } else {
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: lead.stage } : l)));
+    } catch {
       showToast('Failed to update stage', 'error');
     }
   };
@@ -345,15 +281,14 @@ export default function LeadsPage() {
         await Promise.all(ids.map((id) =>
           fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage: bulkStage }) })
         ));
-        setLeads((prev) => prev.map((l) => selectedLeads.has(l.id) ? { ...l, stage: bulkStage as Lead['stage'] } : l));
+        invalidateLeads();
         showToast(`Stage updated for ${ids.length} leads`, 'success');
       }
       if (bulkSdr) {
-        const user = users.find((u) => u.id === bulkSdr);
         await Promise.all(ids.map((id) =>
           fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedToId: bulkSdr }) })
         ));
-        setLeads((prev) => prev.map((l) => selectedLeads.has(l.id) ? { ...l, assignedTo: user ? { id: user.id, firstName: user.firstName, lastName: user.lastName } : l.assignedTo } : l));
+        invalidateLeads();
         showToast(`Reassigned ${ids.length} leads`, 'success');
       }
       if (bulkSeqId) {
@@ -849,7 +784,7 @@ export default function LeadsPage() {
           leadId={selectedLeadId}
           onClose={() => {
             setSelectedLeadId(null);
-            fetchLeads();
+            invalidateLeads();
           }}
         />
       )}
@@ -857,14 +792,14 @@ export default function LeadsPage() {
       {showNewLeadModal && (
         <NewLeadModal
           onClose={() => setShowNewLeadModal(false)}
-          onSuccess={() => { fetchLeads(); setShowNewLeadModal(false); }}
+          onSuccess={() => { invalidateLeads(); setShowNewLeadModal(false); }}
         />
       )}
 
       {showImportModal && (
         <CSVImportModal
           onClose={() => setShowImportModal(false)}
-          onSuccess={() => { setShowImportModal(false); fetchLeads(); }}
+          onSuccess={() => { setShowImportModal(false); invalidateLeads(); }}
         />
       )}
     </div>

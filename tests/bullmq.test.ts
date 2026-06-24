@@ -53,7 +53,6 @@ describe('BullMQ Foundation & JobRun Tracking', () => {
     expect(jobRun).toBeDefined();
     expect(jobRun?.status).toBe('queued');
     expect(jobRun?.jobName).toBe(JobType.MAINTENANCE_HEALTHCHECK);
-    expect(jobRun?.bullJobId).toBe(jobId);
     expect(jobRun?.tenantId).toBe(tenantId);
   });
 

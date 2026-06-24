@@ -123,8 +123,8 @@ describe('handleImportParse', () => {
     expect(mockBatchUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'batch-1' }, data: { status: 'parsing' } })
     );
-    expect(mockRowUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'row-2' }, data: expect.objectContaining({ status: 'error' }) })
+    expect(mockRowUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['row-2'] } }, data: expect.objectContaining({ status: 'error' }) })
     );
     expect(result.success).toBe(true);
     expect(result.validationErrors).toBe(1);

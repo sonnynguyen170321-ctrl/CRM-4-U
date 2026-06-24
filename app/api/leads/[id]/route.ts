@@ -23,9 +23,10 @@ export async function GET(
       assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } },
       campaign: { select: { id: true, name: true, client: { select: { id: true, name: true } } } },
       sequence: { select: { id: true, name: true, steps: { orderBy: { order: 'asc' } } } },
-      tasks: { orderBy: { dueDate: 'asc' } },
+      tasks: { orderBy: { dueDate: 'asc' }, take: 50 },
       notes: {
         orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+        take: 50,
         include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
       },
       activities: {
@@ -106,148 +107,160 @@ export async function PUT(
     },
   });
 
-  // Auto-log stage changes
-  if (body.stage && body.stage !== existing.stage) {
-    await prisma.activity.create({
-      data: {
-        userId: user.id,
-        leadId: id,
-        type: 'stage_changed',
-        description: `Stage changed from ${existing.stage} to ${body.stage}`,
-        metadata: { from: existing.stage, to: body.stage },
-      },
-    });
+  const writes: Promise<any>[] = [];
 
-    // Auto-create meeting_booked activity
-    if (body.stage === 'meeting_booked') {
-      await prisma.activity.create({
+  if (body.stage && body.stage !== existing.stage) {
+    writes.push(
+      prisma.activity.create({
         data: {
           userId: user.id,
           leadId: id,
-          type: 'meeting_booked',
-          description: `Meeting booked with ${existing.firstName} ${existing.lastName}`,
+          type: 'stage_changed',
+          description: `Stage changed from ${existing.stage} to ${body.stage}`,
+          metadata: { from: existing.stage, to: body.stage },
         },
-      });
-      // Notify the actor (SDR who booked) and the lead's assigned SDR if different
+      })
+    );
+
+    if (body.stage === 'meeting_booked') {
+      writes.push(
+        prisma.activity.create({
+          data: {
+            userId: user.id,
+            leadId: id,
+            type: 'meeting_booked',
+            description: `Meeting booked with ${existing.firstName} ${existing.lastName}`,
+          },
+        })
+      );
       const meetingNotifyIds = new Set<string>([user.id]);
       if (existing.assignedToId) meetingNotifyIds.add(existing.assignedToId);
-      await Promise.all([...meetingNotifyIds].map((uid) =>
+      for (const uid of meetingNotifyIds) {
+        writes.push(
+          prisma.notification.create({
+            data: {
+              userId: uid,
+              type: 'meeting_booked',
+              title: 'Meeting Booked',
+              text: `Meeting booked with ${existing.firstName} ${existing.lastName}! 🎉`,
+              linkTo: `/leads/${id}`,
+            },
+          })
+        );
+      }
+    }
+
+    if (existing.assignedToId && existing.assignedToId !== user.id && body.stage !== 'meeting_booked') {
+      const stageLabel = body.stage.replace(/_/g, ' ');
+      writes.push(
         prisma.notification.create({
           data: {
-            userId: uid,
-            type: 'meeting_booked',
-            title: 'Meeting Booked',
-            text: `Meeting booked with ${existing.firstName} ${existing.lastName}! 🎉`,
+            userId: existing.assignedToId,
+            type: 'stage_changed',
+            title: 'Lead Stage Updated',
+            text: `${existing.firstName} ${existing.lastName} was moved to "${stageLabel}" by ${user.firstName ?? ''} ${user.lastName ?? ''}.`.trim(),
             linkTo: `/leads/${id}`,
           },
         })
-      ));
+      );
     }
 
-    // Notify the assigned SDR when stage is changed by someone else
-    if (existing.assignedToId && existing.assignedToId !== user.id && body.stage !== 'meeting_booked') {
-      const stageLabel = body.stage.replace(/_/g, ' ');
-      await prisma.notification.create({
-        data: {
-          userId: existing.assignedToId,
-          type: 'stage_changed',
-          title: 'Lead Stage Updated',
-          text: `${existing.firstName} ${existing.lastName} was moved to "${stageLabel}" by ${user.firstName ?? ''} ${user.lastName ?? ''}.`.trim(),
-          linkTo: `/leads/${id}`,
-        },
-      });
-    }
-
-    // Auto-unenroll / pause sequence on stage change
     if (body.stage && body.stage !== existing.stage && existing.sequenceId) {
       const isCurrentlyPaused = existing.sequenceStatus === 'paused';
 
       if (body.stage === 'replied') {
         if (!isCurrentlyPaused) {
-          await pauseSequence(id, 'replied', user.id);
-          // Notify assigned SDR
+          writes.push(pauseSequence(id, 'replied', user.id));
           if (existing.assignedToId) {
-            await prisma.notification.create({
-              data: {
-                userId: existing.assignedToId,
-                type: 'lead_reply',
-                title: 'Lead Replied',
-                text: `${existing.firstName} ${existing.lastName} has replied. Sequence paused.`,
-                linkTo: `/leads/${id}`,
-              },
-            });
+            writes.push(
+              prisma.notification.create({
+                data: {
+                  userId: existing.assignedToId,
+                  type: 'lead_reply',
+                  title: 'Lead Replied',
+                  text: `${existing.firstName} ${existing.lastName} has replied. Sequence paused.`,
+                  linkTo: `/leads/${id}`,
+                },
+              })
+            );
           }
         }
       } else if (body.stage === 'meeting_booked') {
         if (!isCurrentlyPaused) {
-          await pauseSequence(id, 'meeting_booked', user.id);
+          writes.push(pauseSequence(id, 'meeting_booked', user.id));
         }
       } else if (body.stage === 'won' || body.stage === 'lost') {
-        await unenrollLead(id, existing.sequenceId);
-        await prisma.activity.create({
-          data: {
-            userId: user.id,
-            leadId: id,
-            type: 'sequence_completed',
-            description: `Sequence ended — deal ${body.stage} for ${existing.firstName} ${existing.lastName}`,
-            metadata: { reason: body.stage },
-          },
-        });
-      }
-
-      // Reflect the updated sequence status in the returned lead object
-      const refetched = await prisma.lead.findUnique({ where: { id } });
-      if (refetched) {
-        updated.sequenceId = refetched.sequenceId;
-        updated.sequenceStep = refetched.sequenceStep;
-        updated.sequenceStatus = refetched.sequenceStatus;
+        writes.push(unenrollLead(id, existing.sequenceId));
+        writes.push(
+          prisma.activity.create({
+            data: {
+              userId: user.id,
+              leadId: id,
+              type: 'sequence_completed',
+              description: `Sequence ended — deal ${body.stage} for ${existing.firstName} ${existing.lastName}`,
+              metadata: { reason: body.stage },
+            },
+          })
+        );
       }
     }
   }
 
-  // Move pending tasks + log activity + notify both assignees when lead is reassigned
   if (body.assignedToId !== undefined && body.assignedToId !== existing.assignedToId && body.assignedToId) {
-    // 1. Move all pending tasks to the new assignee
-    await prisma.task.updateMany({
-      where: { leadId: id, status: 'pending' },
-      data: { userId: body.assignedToId },
-    });
+    writes.push(
+      prisma.task.updateMany({
+        where: { leadId: id, status: 'pending' },
+        data: { userId: body.assignedToId },
+      })
+    );
 
-    // 2. Log lead_reassigned activity
-    await prisma.activity.create({
-      data: {
-        userId: user.id,
-        leadId: id,
-        type: 'lead_reassigned',
-        description: `Lead reassigned from SDR to another SDR`,
-        metadata: { fromUserId: existing.assignedToId, toUserId: body.assignedToId },
-      },
-    });
-
-    // 3. Notify new assignee (if not the performing user)
-    if (body.assignedToId !== user.id) {
-      await prisma.notification.create({
+    writes.push(
+      prisma.activity.create({
         data: {
-          userId: body.assignedToId,
-          type: 'lead_assigned',
-          title: 'Lead Assigned to You',
-          text: `${existing.firstName} ${existing.lastName} (${existing.company}) was assigned to you by ${user.firstName} ${user.lastName}`.trim(),
-          linkTo: `/leads/${id}`,
+          userId: user.id,
+          leadId: id,
+          type: 'lead_reassigned',
+          description: `Lead reassigned from SDR to another SDR`,
+          metadata: { fromUserId: existing.assignedToId, toUserId: body.assignedToId },
         },
-      });
+      })
+    );
+
+    if (body.assignedToId !== user.id) {
+      writes.push(
+        prisma.notification.create({
+          data: {
+            userId: body.assignedToId,
+            type: 'lead_assigned',
+            title: 'Lead Assigned to You',
+            text: `${existing.firstName} ${existing.lastName} (${existing.company}) was assigned to you by ${user.firstName} ${user.lastName}`.trim(),
+            linkTo: `/leads/${id}`,
+          },
+        })
+      );
     }
 
-    // 4. Notify old assignee (if existed and not the performing user)
     if (existing.assignedToId && existing.assignedToId !== user.id) {
-      await prisma.notification.create({
-        data: {
-          userId: existing.assignedToId,
-          type: 'lead_reassigned',
-          title: 'Lead Reassigned',
-          text: `${existing.firstName} ${existing.lastName} (${existing.company}) has been reassigned to another user by ${user.firstName} ${user.lastName}`.trim(),
-          linkTo: `/leads/${id}`,
-        },
-      });
+      writes.push(
+        prisma.notification.create({
+          data: {
+            userId: existing.assignedToId,
+            type: 'lead_reassigned',
+            title: 'Lead Reassigned',
+            text: `${existing.firstName} ${existing.lastName} (${existing.company}) has been reassigned to another user by ${user.firstName} ${user.lastName}`.trim(),
+            linkTo: `/leads/${id}`,
+          },
+        })
+      );
+    }
+  }
+
+  await Promise.all(writes);
+
+  if (body.stage && body.stage !== existing.stage && existing.sequenceId) {
+    const refetched = await prisma.lead.findUnique({ where: { id }, select: { sequenceId: true, sequenceStep: true, sequenceStatus: true } });
+    if (refetched) {
+      Object.assign(updated, refetched);
     }
   }
 

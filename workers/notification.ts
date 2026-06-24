@@ -87,7 +87,7 @@ async function handleDigestDaily(payload: DigestDailyPayload) {
 
 export function createNotificationWorker() {
   return createAppWorker(
-    'sync',
+    'notification',
     async (job) => {
       if (job.name === JobType.REMINDER_DUE) {
         return handleReminderDue(job.data as ReminderDuePayload);

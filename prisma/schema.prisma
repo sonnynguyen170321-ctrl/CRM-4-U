@@ -306,6 +306,10 @@ model Lead {
   @@index([engagementScore])
   @@index([contactId])
   @@index([tenantId])
+  @@index([tenantId, stage])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, crmPriorityScore])
+  @@index([tenantId, email])
   @@index([campaignId, stage])
   @@index([campaignId, assignedToId])
   @@index([tenantId, archivedAt])
@@ -389,6 +393,8 @@ model Task {
   @@index([status])
   @@index([tenantId])
   @@index([userId, status, dueDate])
+  @@index([leadId, status])
+  @@index([type, status, dueDate])
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -490,6 +496,8 @@ model Activity {
 
   @@index([userId])
   @@index([leadId])
+  @@index([leadId, type, createdAt])
+  @@index([tenantId, userId, type, createdAt])
   @@index([type])
   @@index([createdAt])
   @@index([tenantId])

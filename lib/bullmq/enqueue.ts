@@ -81,20 +81,10 @@ export async function enqueue<T extends JobType>(
 
   const resolvedJobId = opts.jobId || jobRun.id;
 
-  const job = await queue.add(jobType, payload, {
+  await queue.add(jobType, payload, {
     ...jobOptions,
     jobId: resolvedJobId,
   });
 
-  // 2. Update JobRun with the actual enqueued BullMQ job ID
-  await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-    await prisma.jobRun.update({
-      where: { id: jobRun.id },
-      data: {
-        bullJobId: job.id,
-      },
-    });
-  });
-
-  return job.id!;
+  return resolvedJobId;
 }

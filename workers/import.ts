@@ -25,7 +25,7 @@ async function handleImportParse(payload: ImportParsePayload) {
   });
 
   // Phase 1: Validate
-  const errors: { id: string; rowIndex: number; reason: string }[] = [];
+  const errorRows: { id: string; reason: string }[] = [];
   const validRows: { id: string; rowIndex: number; data: Record<string, unknown> }[] = [];
 
   for (const row of rows) {
@@ -35,17 +35,17 @@ async function handleImportParse(payload: ImportParsePayload) {
     const email = (d.email as string ?? '').trim();
 
     if (!firstName && !lastName && !email) {
-      errors.push({ id: row.id, rowIndex: row.rowIndex, reason: 'Missing name and email' });
+      errorRows.push({ id: row.id, reason: 'Missing name and email' });
     } else {
       validRows.push({ id: row.id, rowIndex: row.rowIndex, data: d });
     }
   }
 
-  // Update validation errors
-  for (const err of errors) {
-    await prisma.importRow.update({
-      where: { id: err.id },
-      data: { status: 'error', errors: { reason: err.reason } },
+  // Batch update validation errors
+  if (errorRows.length > 0) {
+    await prisma.importRow.updateMany({
+      where: { id: { in: errorRows.map(e => e.id) } },
+      data: { status: 'error', errors: { reason: 'Missing name and email' } },
     });
   }
 
@@ -118,16 +118,19 @@ async function handleImportParse(payload: ImportParsePayload) {
   }
 
   // Mark duplicates as error
-  for (const dup of duplicateUpdates) {
-    await prisma.importRow.update({
-      where: { id: dup.id },
-      data: { status: 'error', errors: { reason: dup.reason } },
-    });
+  if (duplicateUpdates.length > 0) {
+    await Promise.all(duplicateUpdates.map(dup =>
+      prisma.importRow.update({
+        where: { id: dup.id },
+        data: { status: 'error', errors: { reason: dup.reason } },
+      })
+    ));
   }
 
   // Handle 'update' resolution — fill empty fields on existing leads
   const existingMap = new Map(existingLeads.map((l) => [l.id, l]));
   let updatedCount = 0;
+  const updateWrites: Promise<any>[] = [];
   for (const ut of updateTargets) {
     const existing = existingMap.get(ut.existingLeadId);
     if (!existing) continue;
@@ -139,14 +142,19 @@ async function handleImportParse(payload: ImportParsePayload) {
     if (!existing.phone && p?.trim()) fill.phone = p.trim();
     if (!existing.email && e?.trim()) fill.email = e.trim();
     if (Object.keys(fill).length > 0) {
-      await prisma.lead.update({ where: { id: ut.existingLeadId }, data: fill });
+      updateWrites.push(
+        prisma.lead.update({ where: { id: ut.existingLeadId }, data: fill })
+      );
       updatedCount++;
     }
-    await prisma.importRow.update({
-      where: { id: ut.id },
-      data: { status: 'imported', leadId: ut.existingLeadId },
-    });
+    updateWrites.push(
+      prisma.importRow.update({
+        where: { id: ut.id },
+        data: { status: 'imported', leadId: ut.existingLeadId },
+      })
+    );
   }
+  await Promise.all(updateWrites);
 
   // Mark clean rows as valid
   if (cleanRowIds.length > 0) {
@@ -187,7 +195,7 @@ async function handleImportParse(payload: ImportParsePayload) {
     data: {
       status: 'parsed',
       parsedRows: cleanRowIds.length + updatedCount,
-      errorRows: errors.length + duplicateUpdates.length,
+      errorRows: errorRows.length + duplicateUpdates.length,
     },
   });
 
@@ -195,7 +203,7 @@ async function handleImportParse(payload: ImportParsePayload) {
     success: true,
     batchId,
     totalRows: rows.length,
-    validationErrors: errors.length,
+    validationErrors: errorRows.length,
     duplicates: duplicateUpdates.length,
     updated: updatedCount,
     cleanRows: cleanRowIds.length,

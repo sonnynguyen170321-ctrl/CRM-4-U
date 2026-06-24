@@ -5,6 +5,9 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { cacheGet, cacheSet, cacheDel } from '@/lib/cache';
+
+const CACHE_TTL = 60;
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -12,6 +15,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const showArchived = new URL(req.url).searchParams.get('archived') === '1';
+    const cacheKey = `sequences:${showArchived}`;
+
+    const cached = await cacheGet<any[]>(cacheKey);
+    if (cached) return NextResponse.json(cached, {
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
+    });
 
     const sequences = await prisma.sequence.findMany({
       where: { isArchived: showArchived },
@@ -24,6 +33,7 @@ export async function GET(req: NextRequest) {
       take: 500,
     });
 
+    await cacheSet(cacheKey, sequences, CACHE_TTL);
     return NextResponse.json(sequences, {
       headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
     });
@@ -57,8 +67,6 @@ export async function POST(req: NextRequest) {
             templateId: step.templateId ?? null,
             instructions: step.instructions,
             autoComplete: step.autoComplete ?? false,
-            // Nested relation creates are not reached by the prisma tenant middleware,
-            // so the tenantId must be set explicitly here.
             tenantId: user.tenantId!,
           })),
         },
@@ -66,6 +74,7 @@ export async function POST(req: NextRequest) {
       include: { steps: { orderBy: { order: 'asc' } } },
     });
 
+    await cacheDel('sequences:');
     return NextResponse.json(sequence, { status: 201 });
   } catch (err) {
     return handleApiError('api/sequences POST', err);

@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 // --- Prisma mocks ---
 const mockLeadFindUnique = vi.fn();
 const mockLeadFindFirst = vi.fn();
+const mockLeadFindMany = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockAccountFindUnique = vi.fn();
 const mockAccountUpdate = vi.fn();
@@ -17,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
     lead: {
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
       findFirst: (...args: unknown[]) => mockLeadFindFirst(...args),
+      findMany: (...args: unknown[]) => mockLeadFindMany(...args),
       update: (...args: unknown[]) => mockLeadUpdate(...args),
     },
     emailAccount: {
@@ -269,11 +271,11 @@ describe('handleEmailSync', () => {
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(true);
     (extractBouncedRecipient as ReturnType<typeof vi.fn>).mockReturnValue('lead@acme.com');
-    mockLeadFindFirst.mockResolvedValue({
+    mockLeadFindMany.mockResolvedValue([{
       id: 'lead-1', email: 'lead@acme.com', firstName: 'Lead', lastName: 'Test',
       company: 'Acme', sequenceId: 'seq-1', assignedToId: 'user-1',
       tags: [], emailInvalid: false, tenantId: 'tenant-1',
-    });
+    }]);
     mockSuppressionFindFirst.mockResolvedValue(null);
     mockAccountFindUnique
       .mockResolvedValueOnce(mockAccount)   // first call in handleEmailSync
@@ -300,10 +302,11 @@ describe('handleEmailSync', () => {
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    mockLeadFindFirst.mockResolvedValue({
-      id: 'lead-1', stage: 'contacted', sequenceStatus: 'active',
+    mockLeadFindMany.mockResolvedValue([{
+      id: 'lead-1', email: 'lead@acme.com', stage: 'contacted', sequenceStatus: 'active',
       assignedToId: 'user-1', firstName: 'Lead', lastName: 'Test', company: 'Acme',
-    });
+      sequenceId: 'seq-1',
+    }]);
 
     const result = await handleEmailSync({ accountId: 'acct-1' });
 

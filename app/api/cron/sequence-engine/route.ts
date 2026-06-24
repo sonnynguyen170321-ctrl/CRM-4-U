@@ -5,7 +5,6 @@ import { scheduleSmartSends, distributeSends } from '@/lib/sequences/smartSend';
 import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 
 const LOCK_STALE_MS = 10 * 60 * 1000;
 

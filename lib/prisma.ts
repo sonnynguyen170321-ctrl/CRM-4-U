@@ -1,22 +1,14 @@
 import { PrismaClient, Prisma } from '@prisma/client';
-import { neonConfig } from '@neondatabase/serverless';
-import { PrismaNeon } from '@prisma/adapter-neon';
 import { cache } from 'react';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
 import { applyScopedTenant, applyBypassTenant } from './tenant-inject';
 export { tenantStorage };
 
-// Route non-transactional pool queries over HTTP — no TCP handshake on cold start.
-// With DB_RLS_ENFORCED off (default) every query is a single statement and uses this
-// fast HTTP path; only when DB-level RLS is on do we fall back to a pooled transaction.
-neonConfig.poolQueryViaFetch = true;
-
 // Whether Postgres-level Row-Level Security is actually enforced on the target DB
-// (i.e. `supabase/rls.sql` has been applied — production Supabase). When false (Neon /
-// dev / single-tenant), the app-layer `tenantId` arg injection below is the isolation
-// layer, and we SKIP the per-query `set_config` transaction — which otherwise forces the
-// slower pooled-TCP path and ~3 round-trips on every single query.
+// (i.e. `supabase/rls.sql` has been applied). When false (single-tenant / standard
+// Postgres), the app-layer `tenantId` arg injection below is the isolation layer, and we
+// SKIP the per-query `set_config` transaction — saving ~3 round-trips on every query.
 const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
 
 // Models that actually carry a `tenantId` column. The root `Tenant` model does not, so we
@@ -47,16 +39,15 @@ const getTenantIdFromSession = cache(async function getTenantIdFromSession(): Pr
 });
 
 function createPrismaClient() {
+  // Standard persistent pooled Postgres connection (works with any Postgres — local, RDS,
+  // Supabase). Prisma keeps the pool warm, so there is no per-request cold-start latency.
+  // Workers prefer DIRECT_URL (an unpooled connection) for multi-step transactional work.
   const isWorker = process.env.IS_WORKER === 'true';
   const connectionString = isWorker ? (process.env.DIRECT_URL || process.env.DATABASE_URL) : process.env.DATABASE_URL;
 
   const log: Prisma.LogLevel[] = process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'];
 
-  // Build with concrete option objects so the constructor overload resolves cleanly (a
-  // ternary that yields a union of option shapes does not satisfy PrismaClient's `Subset`).
-  const client = isWorker
-    ? new PrismaClient({ datasources: { db: { url: connectionString } }, log })
-    : new PrismaClient({ adapter: new PrismaNeon({ connectionString: connectionString! }), log });
+  const client = new PrismaClient({ datasources: { db: { url: connectionString } }, log });
 
   return client.$extends(auditExtension).$extends({
     query: {

@@ -37,19 +37,33 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   let replies = 0;
   let bounces = 0;
 
-  for (const msg of messages) {
-    if (isBounceMessage(msg)) {
+  const bounceMessages = messages.filter(m => isBounceMessage(m));
+  const replyMessages = messages.filter(m => !isBounceMessage(m) && !isAutoReply(m) && m.fromEmail);
+
+  const allEmails = [
+    ...bounceMessages.map(m => extractBouncedRecipient(m)).filter(Boolean),
+    ...replyMessages.map(m => m.fromEmail).filter(Boolean),
+  ] as string[];
+
+  if (allEmails.length > 0) {
+    const existingLeads = await prisma.lead.findMany({
+      where: {
+        email: { in: allEmails, mode: 'insensitive' },
+        assignedToId: account.userId,
+      },
+      select: { id: true, email: true, sequenceId: true, sequenceStatus: true, emailInvalid: true },
+    });
+
+    const leadByEmail = new Map<string, typeof existingLeads[0]>();
+    for (const l of existingLeads) {
+      leadByEmail.set(l.email.toLowerCase(), l);
+    }
+
+    for (const msg of bounceMessages) {
       const bounced = extractBouncedRecipient(msg);
       if (!bounced) continue;
-
-      const lead = await prisma.lead.findFirst({
-        where: {
-          email: { equals: bounced, mode: 'insensitive' },
-          assignedToId: account.userId,
-          emailInvalid: false,
-        },
-      });
-      if (!lead) continue;
+      const lead = leadByEmail.get(bounced.toLowerCase());
+      if (!lead || lead.emailInvalid) continue;
 
       const bounceType = classifyBounceType(msg.subject);
       await handleApplyBounce({
@@ -59,27 +73,19 @@ async function handleEmailSync(payload: EmailSyncPayload) {
         bounceType,
       });
       bounces++;
-      continue;
     }
 
-    if (isAutoReply(msg) || !msg.fromEmail) continue;
+    for (const msg of replyMessages) {
+      const lead = leadByEmail.get(msg.fromEmail!.toLowerCase());
+      if (!lead || !lead.sequenceId || lead.sequenceStatus !== 'active') continue;
 
-    const lead = await prisma.lead.findFirst({
-      where: {
-        email: { equals: msg.fromEmail, mode: 'insensitive' },
-        assignedToId: account.userId,
-        sequenceId: { not: null },
-        sequenceStatus: 'active',
-      },
-    });
-    if (!lead) continue;
-
-    await handleApplyReply({
-      providerMessageId: msg.providerMessageId,
-      leadId: lead.id,
-      accountId,
-    });
-    replies++;
+      await handleApplyReply({
+        providerMessageId: msg.providerMessageId,
+        leadId: lead.id,
+        accountId,
+      });
+      replies++;
+    }
   }
 
   await prisma.emailAccount.update({
