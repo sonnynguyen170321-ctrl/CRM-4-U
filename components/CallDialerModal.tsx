@@ -1,16 +1,58 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneOff, Mic, Volume2 } from 'lucide-react';
+
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
 interface Lead { id: string; firstName: string; lastName: string; company: string; phone?: string; }
 
 interface CallDialerModalProps {
-  task: Task;
+  task?: Task | null;
   lead: Lead;
   onClose: () => void;
   onHangUp: (notes: string, outcome: string) => void;
 }
+
+// Helper to synthesize DTMF tones using Web Audio API
+const playDtmfTone = (digit: string) => {
+  if (typeof window === 'undefined') return;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const dtmfFreqs: Record<string, [number, number]> = {
+    '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+    '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+    '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+    '*': [941, 1209], '0': [941, 1336], '#': [941, 1477]
+  };
+
+  const freqs = dtmfFreqs[digit];
+  if (!freqs) return;
+
+  try {
+    const ctx = new AudioContextClass();
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.frequency.value = freqs[0];
+    osc2.frequency.value = freqs[1];
+
+    gain.gain.setValueAtTime(0.08, ctx.currentTime); // comfortable volume level
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12); // quick decay
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start();
+    osc2.start();
+    osc1.stop(ctx.currentTime + 0.12);
+    osc2.stop(ctx.currentTime + 0.12);
+  } catch (err) {
+    console.error('Error playing DTMF tone:', err);
+  }
+};
 
 export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }: CallDialerModalProps) {
   const [callState, setCallState] = useState<'dialing' | 'connected' | 'completed'>('dialing');
@@ -19,15 +61,102 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
   const [callNote, setCallNote] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
+  const [showKeypad, setShowKeypad] = useState(false);
 
-  // Simulate Dialing -> Connected transition
+  // Twilio Connection references
+  const [device, setDevice] = useState<any>(null);
+  const [activeCall, setActiveCall] = useState<any>(null);
+  const deviceRef = useRef<any>(null);
+  const callRef = useRef<any>(null);
+
+  // Initialize Twilio Device and start Call
   useEffect(() => {
-    const dialTimer = setTimeout(() => {
-      setCallState('connected');
-    }, 1500);
+    let activeDevice: any = null;
 
-    return () => clearTimeout(dialTimer);
-  }, []);
+    async function initTwilio() {
+      try {
+        const tokenRes = await fetch('/api/dialer/token');
+        if (!tokenRes.ok) {
+          throw new Error('Failed to retrieve voice access token');
+        }
+        const { token } = await tokenRes.json();
+        if (!token) {
+          throw new Error('No voice token returned from server');
+        }
+
+        // Dynamically load Twilio Voice SDK on client to avoid SSR issues
+        const { Device } = await import('@twilio/voice-sdk');
+
+        const newDevice = new Device(token, {
+          logLevel: 'debug',
+          codecPreferences: ['opus', 'pcmu'] as any,
+        });
+
+        await newDevice.register();
+        activeDevice = newDevice;
+        setDevice(newDevice);
+        deviceRef.current = newDevice;
+
+        const targetPhone = lead.phone ? lead.phone.trim() : '';
+        if (!targetPhone) {
+          console.warn('No target phone number provided');
+          return;
+        }
+
+        // Connect the WebRTC call session
+        const call = await newDevice.connect({
+          params: { To: targetPhone }
+        });
+
+        setActiveCall(call);
+        callRef.current = call;
+
+        // Setup call event listeners
+        call.on('accept', () => {
+          setCallState('connected');
+        });
+
+        call.on('disconnect', () => {
+          setCallState('completed');
+        });
+
+        call.on('reject', () => {
+          setCallState('completed');
+        });
+
+        call.on('error', (err: any) => {
+          console.error('Twilio Voice connection error:', err);
+          setCallState('completed');
+        });
+
+      } catch (err) {
+        console.error('Twilio initialization failed, falling back to simulated session:', err);
+        // BPO Demo Graceful Fallback
+        const timer = setTimeout(() => {
+          setCallState('connected');
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+
+    initTwilio();
+
+    return () => {
+      // Disconnect call and clean up device on component unmount
+      try {
+        if (callRef.current) {
+          callRef.current.disconnect();
+        }
+        if (activeDevice) {
+          if (typeof activeDevice.destroy === 'function') {
+            activeDevice.destroy();
+          }
+        }
+      } catch (e) {
+        console.warn('Error during Twilio client cleanup:', e);
+      }
+    };
+  }, [lead.phone]);
 
   // Connected Timer ticking up
   useEffect(() => {
@@ -46,8 +175,28 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const toggleMute = () => {
+    if (callRef.current) {
+      const newMuteState = !isMuted;
+      callRef.current.mute(newMuteState);
+      setIsMuted(newMuteState);
+    } else {
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleKeypadPress = (digit: string) => {
+    playDtmfTone(digit);
+    if (callRef.current) {
+      callRef.current.sendDigits(digit);
+    }
+  };
+
   const handleHangUpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (callRef.current) {
+      callRef.current.disconnect();
+    }
     const duration = formatTime(seconds);
     const compiledNotes = `Phone Call (${duration}).\nOutcome: ${callOutcome}\nNotes: ${callNote}`;
     onHangUp(compiledNotes, callOutcome);
@@ -102,20 +251,25 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
         <div className="px-6 py-4 flex justify-center gap-6 border-b border-card-border/30 bg-background/20">
           <button 
             type="button"
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={toggleMute}
             className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
               isMuted 
-                ? 'bg-brand-red/10 border-brand-red/30 text-brand-red font-semibold' 
+                ? 'bg-brand-red/10 border-brand-red/30 text-brand-red font-semibold animate-pulse' 
                 : 'border-card-border text-text-secondary hover:bg-card-border/40'
             }`}
-            title="Mute Mic"
+            title={isMuted ? "Unmute Mic" : "Mute Mic"}
           >
             <Mic className="w-4.5 h-4.5" />
           </button>
           
           <button 
             type="button"
-            className="w-10 h-10 rounded-full flex items-center justify-center border border-card-border text-text-secondary hover:bg-card-border/40 transition-all"
+            onClick={() => setShowKeypad(!showKeypad)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
+              showKeypad 
+                ? 'bg-brand-orange/15 border-brand-orange/40 text-brand-orange font-semibold' 
+                : 'border-card-border text-text-secondary hover:bg-card-border/40'
+            }`}
             title="Keypad"
           >
             <span className="text-xs font-bold font-mono">123</span>
@@ -134,6 +288,22 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             <Volume2 className="w-4.5 h-4.5" />
           </button>
         </div>
+
+        {/* Dynamic DTMF Keypad Grid */}
+        {showKeypad && (
+          <div className="bg-background/40 border-b border-card-border/30 px-6 py-4 grid grid-cols-3 gap-2.5 justify-items-center animate-in slide-in-from-top-3 duration-200">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => handleKeypadPress(digit)}
+                className="w-11 h-11 rounded-full flex flex-col items-center justify-center border border-card-border hover:border-brand-orange/50 hover:bg-card-border/25 active:scale-90 transition-all text-sm font-semibold font-mono text-text-primary"
+              >
+                {digit}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Outcome Logging Form */}
         <form onSubmit={handleHangUpSubmit} className="p-5 space-y-4 text-xs">
@@ -176,3 +346,4 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
     </div>
   );
 }
+
