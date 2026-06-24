@@ -196,6 +196,13 @@ export const createCampaignSchema = z.object({
   startDate: isoDate.optional(),
 });
 
+export const updateCampaignSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  targetVertical: shortText.nullish().optional(),
+  targetGeo: shortText.nullish().optional(),
+  status: campaignStatus.optional(),
+});
+
 export const markNotificationSchema = z.object({
   id: id.optional(),
 });
