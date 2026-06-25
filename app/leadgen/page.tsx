@@ -66,7 +66,7 @@ const PRIORITY_CONFIG = {
 const KANBAN_STAGES = ['new', 'replied', 'meeting_booked', 'won'] as const;
 
 export default function LeadgenPage() {
-  const { currentRole } = useAppContext();
+  const { currentRole, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -90,12 +90,14 @@ export default function LeadgenPage() {
   const [routeSdrId, setRouteSdrId] = useState('');
   const [routing, setRouting] = useState(false);
 
-  // Gate access
+  // Gate access. Wait for the session to resolve first: while it loads, `currentRole`
+  // falls back to 'sdr' (AppContext), which would otherwise bounce a real leadgen user
+  // to '/' — and the dashboard then redirects them back here, causing a bounce loop.
   useEffect(() => {
-    if (currentRole !== 'leadgen') {
+    if (!isSessionLoading && currentRole !== 'leadgen') {
       router.replace('/');
     }
-  }, [currentRole, router]);
+  }, [isSessionLoading, currentRole, router]);
 
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
