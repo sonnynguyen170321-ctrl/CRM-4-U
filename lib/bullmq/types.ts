@@ -14,6 +14,7 @@ export enum JobType {
   SEQUENCE_PAUSE = 'sequence.pause',
   SEQUENCE_UNENROLL = 'sequence.unenroll',
   SEQUENCE_REBUILD = 'sequence.rebuild',
+  SEQUENCE_EXECUTE_TASK = 'sequence.execute-task',
   EMAIL_SEND = 'email.send',
   EMAIL_SYNC = 'email.sync',
   EMAIL_APPLY_REPLY = 'email.apply-reply',
@@ -52,6 +53,11 @@ export interface SequenceUnenrollPayload {
 
 export interface SequenceRebuildPayload {
   sequenceId: string;
+}
+
+/** Delayed execution of an automated sequence email task at its due date. */
+export interface SequenceExecuteTaskPayload {
+  taskId: string;
 }
 
 export interface EmailSendPayload {
@@ -135,6 +141,7 @@ export type JobPayload = {
   [JobType.SEQUENCE_PAUSE]: SequencePausePayload;
   [JobType.SEQUENCE_UNENROLL]: SequenceUnenrollPayload;
   [JobType.SEQUENCE_REBUILD]: SequenceRebuildPayload;
+  [JobType.SEQUENCE_EXECUTE_TASK]: SequenceExecuteTaskPayload;
   [JobType.EMAIL_SEND]: EmailSendPayload;
   [JobType.EMAIL_SYNC]: EmailSyncPayload;
   [JobType.EMAIL_APPLY_REPLY]: EmailApplyReplyPayload;

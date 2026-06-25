@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { snapToBusinessDay } from '@/lib/dates/businessDays';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
-import { inngest } from '@/lib/inngest/client';
+import { enqueue } from '@/lib/bullmq/enqueue';
+import { JobType } from '@/lib/bullmq/types';
 
 /**
  * Sequence execution engine (SKILL.md §3).
@@ -49,16 +50,19 @@ export async function createTaskForStep(
     data: { nextTaskDue: dueDate },
   });
 
-  // Dynamically schedule execution in Inngest if the step is an automated email task
+  // Schedule delayed execution on the BullMQ SEQUENCE queue for automated email steps.
+  // The JobRun durable mirror makes this rebuildable from the DB (maintenance worker's
+  // `missing-delayed` repair), so a queue blip here must never fail task creation.
   if (task.type === 'email' && step.autoComplete) {
     try {
-      await inngest.send({
-        name: 'crm/task.execute',
-        data: { taskId: task.id },
-        ts: dueDate.getTime(),
-      });
+      const delay = Math.max(0, dueDate.getTime() - Date.now());
+      await enqueue(
+        JobType.SEQUENCE_EXECUTE_TASK,
+        { taskId: task.id },
+        { delay, tenantId: task.tenantId },
+      );
     } catch (err) {
-      console.error(`[createTaskForStep] Failed to enqueue Inngest execution for task ${task.id}:`, err);
+      console.error(`[createTaskForStep] Failed to schedule execution for task ${task.id}:`, err);
     }
   }
 

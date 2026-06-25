@@ -37,6 +37,11 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2000 },
   },
+  [JobType.SEQUENCE_EXECUTE_TASK]: {
+    // Safe to retry: the handler re-checks task status and CAS-locks before sending.
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  },
   [JobType.IMPORT_PARSE]: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },

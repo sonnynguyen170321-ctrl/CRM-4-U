@@ -137,10 +137,13 @@ Point the host scheduler (PM2 cron module or OS `crontab`) at the cron routes wi
 
 ## 9. Open decisions / notes
 
-- **Automated sequence sends use Inngest** (`lib/sequences/engine.ts`) for scheduling today;
-  the call is wrapped in try/catch so the app degrades (does not crash) if Inngest is not
-  configured. The BullMQ migration (runtime-hardening P10) is meant to replace it. Before
-  relying on unattended sends, either configure Inngest or finish the BullMQ cutover.
+- **Automated sequence sends run on BullMQ.** When a sequence creates an automated email
+  step, `lib/sequences/engine.ts` enqueues a **delayed** `sequence.execute-task` job (due at
+  the step's send time) that the worker runs — render → `OutboundMessage` → `email.send`.
+  The delayed job is mirrored in the `JobRun` table, so it survives a worker restart and the
+  maintenance worker's `missing-delayed` repair can rebuild it. No Inngest account or keys are
+  required (the dependency was removed). Workers + `REDIS_URL` are therefore mandatory for
+  unattended sends; keep `SEQUENCE_AUTOSEND_ENABLED=false` until you're ready to go live.
 - **CSP** is intentionally not yet set in `next.config.ts` (a strict nonce-based policy needs
   per-request nonce wiring and would otherwise break inline styles). Add it at the edge/proxy
   or in a follow-up once nonces are wired.

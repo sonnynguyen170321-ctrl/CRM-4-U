@@ -3,9 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P8 — Premium data model — **DONE**
-**Next unchecked task:** `P10` — Deployment (managed Redis, separate worker host, teardown Inngest).
-**Blockers:** none.
+**Current phase:** P10 — Deployment. **Inngest teardown DONE** (code); infra provisioning + smartSend retire remain.
+**Next unchecked task:** `P10` — provision managed Redis + separate always-on worker host (`workers/index.ts`); then retire the `smartSend` cron scanner once the worker path is proven.
 **Blockers:** none.
 
 ## Decisions locked
@@ -41,6 +40,8 @@
 - 2026-06-23 — **P8 Phase 1 ✓** — Added `Account` model (name, industry, website, linkedIn, size, tenantId); added `accountId` (optional FK) + `engagementScore` (Int?) to Lead; renamed `priority` → `crmPriorityScore` on Lead. Migration populates Account from existing distinct Lead companies. Updated all 11 source files referencing old `priority` field. API surface keeps `priority` as input. Migration: `20260623100000_p8_premium_data_model`.
 - 2026-06-23 — **P8 Phase 2 (pragmatic) ✓** — Added `Contact` model (person fields + dedup on `(tenantId, normalizedEmail)`); added `contactId` FK to Lead. Updated `workers/import.ts`, `app/api/leads/route.ts`, `prisma/seed.ts` to create/find Contact before Lead. Person fields retained on Lead for backward compat. Migration: `20260624100000_p8_contact_model`. 162/163 tests pass (admin needs Neon DB).
 - 2026-06-24 — **Build-unblock audit (static + Playwright runtime) ✓** — `next build` had been silently broken since P1.1 (156 tsc errors; `next dev` doesn't typecheck). Root cause: removing `@default("default-tenant")` made `tenantId` type-required on every write while `lib/prisma.ts` injects it at runtime. **Central fix:** extracted tenant-injection into `lib/tenant-inject.ts` (now also stamps writes in the bypassRls worker/seed path — a latent NOT-NULL runtime bug — and never WHERE-scopes bypass reads); exported `prisma` as a `TenantWriteOptional` type so `tenantId` is optional only on write inputs. Added `tests/tenant-inject.test.ts` (14 tests). Fixed ~20 genuine bugs (seed `leadsData` ordering + nested-step `tenantId`; BullMQ `timeout`/`ConnectionOptions`/`Prisma.DbNull`; email/send `tenantId` guard; import-row JSON cast; adapter `send` return types; `tasks` route `crmPriorityScore`→`priority` remap; `workers/healthcheck` `job.client`; test drift; `prefer-const`). **Playwright sweep** of all 14 pages logged in as Dean (director): every page 0 console errors / all API 200 after fixes. Two runtime bugs found+fixed: `/api/sequences` 500 (reverted the `Sequence.version`/`sequence_paused` schema adds — they needed a DB migration the un-migrated Neon DB lacked; refactored `handleRebuild` to drop the unused version-bump and `pauseSequence` to emit `sequence_unenrolled`+`paused` metadata) and a React `key` warning in `JobsAdminPage` (Fragment key). Verified create path end-to-end (POST /api/leads → 201 with middleware-injected `tenantId`). Gates green: tsc 0 · lint clean · 177 tests · `next build` OK. Note: `team/campaigns` showed a transient Neon connect-timeout (infra, not code). No Neon migration applied (moving to AWS).
+
+- 2026-06-25 — **P10 Inngest teardown ✓** — Removed the last Inngest usage. The scheduled auto-send (`crm/task.execute`, fired at a step's due date) is now a **delayed BullMQ `sequence.execute-task` job**: `lib/sequences/engine.ts` enqueues it with `delay = dueDate - now` + `tenantId`; ported the executor to `workers/sequence.ts:handleExecuteTask` (worker already runs in tenant context via `wrapProcessor`, so the manual `tenantStorage` juggling dropped). Deleted `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dependency. Delayed job is rebuildable from the `JobRun` mirror (maintenance `missing-delayed`). Added `tests/sequence-execute.test.ts` (8 tests). Gates green. **Remaining P10 = infra** (managed Redis + worker host) + retire `smartSend` scanner.
 
 ## How to resume (any machine)
 1. `git pull`
