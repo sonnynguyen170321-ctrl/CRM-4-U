@@ -13,6 +13,8 @@ import TeamLeaderboard from '@/components/team/TeamLeaderboard';
 import OverdueAlerts from '@/components/team/OverdueAlerts';
 import RepProgressTracker from '@/components/team/RepProgressTracker';
 import MeetingsBoard from '@/components/team/MeetingsBoard';
+import SequencePerformanceReport from '@/components/SequencePerformanceReport';
+import type { ScopedSequenceStats } from '@/lib/sequences/analytics';
 
 // Loaded on demand: the slide-over and the recharts-heavy campaign drill-down
 // (~50KB) only render on interaction, so their chunks stay out of the initial bundle.
@@ -39,7 +41,7 @@ export default function TeamViewPage() {
   }, [isSessionLoading, isManager, router]);
 
   // Navigation states
-  const [activeTab, setActiveTab] = useState<'campaigns' | 'performance' | 'progress' | 'meetings'>('campaigns');
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'performance' | 'progress' | 'meetings' | 'sequences'>('campaigns');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
   // Filter states
@@ -52,6 +54,7 @@ export default function TeamViewPage() {
   const [campaignDetail, setCampaignDetail] = useState<any | null>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<{ users: any[]; atRiskLeads: any[] } | null>(null);
+  const [seqStats, setSeqStats] = useState<ScopedSequenceStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
@@ -136,6 +139,19 @@ export default function TeamViewPage() {
     }
   }, [filterSdr, filterManager, showToast]);
 
+  // Fetch role-scoped sequence performance (Director=all, FM/TL=pod∪accounts).
+  const fetchSeqStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/sequences/team-analytics');
+      if (res.ok) setSeqStats(await res.json());
+    } catch {
+      showToast('Failed to load sequence performance', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
   // Master fetch effect depending on navigation path
   useEffect(() => {
     // SDRs bypass overview and land directly on their assigned campaign detail
@@ -154,10 +170,12 @@ export default function TeamViewPage() {
     } else if (activeTab === 'performance') {
       fetchLeaderboard();
       fetchAlerts();
+    } else if (activeTab === 'sequences') {
+      fetchSeqStats();
     } else {
       setIsLoading(false);
     }
-  }, [currentRole, activeTab, selectedCampaignId, fetchCampaignsOverview, fetchCampaignDetails, fetchLeaderboard, fetchAlerts]);
+  }, [currentRole, activeTab, selectedCampaignId, fetchCampaignsOverview, fetchCampaignDetails, fetchLeaderboard, fetchAlerts, fetchSeqStats]);
 
   // When SDR campaigns are loaded, auto-select the first one (their assigned campaign or fallback)
   useEffect(() => {
@@ -437,6 +455,20 @@ ${detail.sequences && detail.sequences.length > 0 ? `
             >
               Rep Progress & Conversion
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('sequences');
+                setSelectedCampaignId(null);
+                setCampaignDetail(null);
+              }}
+              className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                activeTab === 'sequences'
+                  ? 'bg-brand-red text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Sequences
+            </button>
             {['director', 'floor_manager'].includes(currentRole || '') && (
               <button
                 onClick={() => {
@@ -574,6 +606,19 @@ ${detail.sequences && detail.sequences.length > 0 ? `
           <MeetingsBoard onSelectLead={setSelectedLeadId} />
         ) : activeTab === 'progress' ? (
           <RepProgressTracker users={users} dateRange={dateRange} />
+        ) : activeTab === 'sequences' ? (
+          <SequencePerformanceReport
+            stats={seqStats}
+            scopeLabel={
+              currentRole === 'director'
+                ? 'Org-wide'
+                : currentRole === 'floor_manager'
+                ? 'Across your floor'
+                : currentRole === 'team_lead'
+                ? 'Across your pod'
+                : undefined
+            }
+          />
         ) : (
           /* Performance Tab: leaderboard + alerts side-by-side */
           <div className="space-y-6">

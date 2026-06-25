@@ -782,6 +782,7 @@ export default function LeadsPage() {
       {selectedLeadId && (
         <LeadDetailPanel
           leadId={selectedLeadId}
+          onLeadUpdate={() => invalidateLeads()}
           onClose={() => {
             setSelectedLeadId(null);
             invalidateLeads();

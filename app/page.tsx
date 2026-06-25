@@ -91,6 +91,10 @@ export default function DashboardPage() {
   const [loggingModalOpen, setLoggingModalOpen] = useState(false);
   const [rescheduleTask, setRescheduleTask] = useState<Task | null>(null);
   const [newDueDate, setNewDueDate] = useState('');
+  // Tasks the user "skipped for now": kept pending, but sorted to the end of the active
+  // list so they always come back (this session and on the next load) until completed or
+  // rescheduled. Client-only — a skip never closes a task, so it can't become a report gap.
+  const [deferredIds, setDeferredIds] = useState<Set<string>>(new Set());
   const [meetingPrompt, setMeetingPrompt] = useState<Task | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [quickNoteTask, setQuickNoteTask] = useState<Task | null>(null);
@@ -207,6 +211,7 @@ export default function DashboardPage() {
     }
     if (status === 'skipped') showToast('Task skipped', 'info');
     else if (status === 'completed') showToast('Task completed ✓', 'success');
+    clearDeferred(taskId);
     loadAll();
   };
 
@@ -287,8 +292,19 @@ export default function DashboardPage() {
     setMeetingPrompt(null);
   };
 
-  const handleSkip = async (task: Task) => {
-    await submitComplete(task.id, 'skipped', '', '');
+  const clearDeferred = (taskId: string) =>
+    setDeferredIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+
+  // Skip = defer, not dismiss. The task stays pending and drops to the end of the list so
+  // it resurfaces until it's logged & completed or rescheduled (no silent close → no data gap).
+  const handleSkip = (task: Task) => {
+    setDeferredIds((prev) => new Set(prev).add(task.id));
+    showToast('Skipped for now — moved to the end of your list', 'info');
   };
 
   const handleQuickNoteSubmit = async (e: React.FormEvent) => {
@@ -323,6 +339,7 @@ export default function DashboardPage() {
       return;
     }
     showToast('Task rescheduled ✓', 'success');
+    clearDeferred(rescheduleTask.id);
     setRescheduleTask(null);
     setNewDueDate('');
     loadAll();
@@ -348,11 +365,19 @@ export default function DashboardPage() {
     }
   };
 
+  // Skipped-for-now tasks sort to the end of the active work queue while staying pending.
+  const orderDeferred = (list: Task[]) => {
+    if (deferredIds.size === 0) return list;
+    const active = list.filter((t) => !deferredIds.has(t.id));
+    const deferred = list.filter((t) => deferredIds.has(t.id));
+    return [...active, ...deferred];
+  };
+
   const visibleTasks =
     activeTab === 'today'
-      ? todayTasks.filter((t) => t.status === 'pending')
+      ? orderDeferred(todayTasks.filter((t) => t.status === 'pending'))
       : activeTab === 'overdue'
-      ? overdueTasks
+      ? orderDeferred(overdueTasks)
       : yesterdayTasks;
 
   const sdrUsers = users.filter((u) => u.role === 'sdr' || u.role === 'leadgen');
@@ -500,6 +525,11 @@ export default function DashboardPage() {
                       {task.type === 'phone' && task.lead?.tags?.includes('do_not_call') && (
                         <span className="inline-block text-xs font-semibold text-brand-red font-mono bg-brand-red/5 px-2 py-0.5 border border-brand-red/20 rounded">
                           ⛔ Do Not Call
+                        </span>
+                      )}
+                      {deferredIds.has(task.id) && (
+                        <span className="inline-block text-xs font-semibold text-text-muted font-mono bg-card-border/40 px-2 py-0.5 border border-card-border rounded">
+                          ↩ skipped — revisit
                         </span>
                       )}
                     </div>
