@@ -18,7 +18,7 @@ vi.mock('ioredis', () => ({
   },
 }));
 
-import { cacheDel, cacheGet, cacheSet } from '@/lib/cache';
+import { cacheDel, cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 
 const PREFIX = 'crm4u:cache:';
 
@@ -97,5 +97,38 @@ describe('cacheGet / cacheSet', () => {
   it('writes with the prefix + TTL', async () => {
     await cacheSet('k', { a: 1 }, 30);
     expect(setexMock).toHaveBeenCalledWith(`${PREFIX}k`, 30, JSON.stringify({ a: 1 }));
+  });
+});
+
+describe('listKey / invalidateList — tenant scoping', () => {
+  beforeEach(() => {
+    scanMock.mockReset();
+    delMock.mockReset();
+  });
+
+  it('builds a tenant-scoped read key', () => {
+    expect(listKey('t1', 'campaigns', 'list')).toBe('t1:campaigns:list');
+    expect(listKey('t1', 'templates', 'email:hi')).toBe('t1:templates:email:hi');
+  });
+
+  it('falls back to default-tenant when tenantId is undefined', () => {
+    expect(listKey(undefined, 'sequences', 'false')).toBe('default-tenant:sequences:false');
+  });
+
+  it('invalidateList clears the exact tenant+resource prefix that listKey writes under', async () => {
+    // read key and invalidation prefix must align (the bug this guards against)
+    const key = listKey('t1', 'campaigns', 'list'); // t1:campaigns:list
+    scanMock.mockResolvedValueOnce(['0', [`${PREFIX}${key}`]]);
+
+    await invalidateList('t1', 'campaigns');
+
+    expect(scanMock).toHaveBeenCalledWith('0', 'MATCH', `${PREFIX}t1:campaigns:*`, 'COUNT', 100);
+    expect(delMock).toHaveBeenCalledWith(`${PREFIX}t1:campaigns:list`);
+  });
+
+  it('does not cross tenants when invalidating', async () => {
+    scanMock.mockResolvedValueOnce(['0', []]);
+    await invalidateList('t2', 'sequences');
+    expect(scanMock).toHaveBeenCalledWith('0', 'MATCH', `${PREFIX}t2:sequences:*`, 'COUNT', 100);
   });
 });

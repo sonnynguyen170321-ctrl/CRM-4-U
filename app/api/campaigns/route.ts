@@ -5,7 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
-import { cacheGet, cacheSet, cacheDel } from '@/lib/cache';
+import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 
 const CACHE_TTL = 60;
 
@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  const user = userOrRes as SessionUser;
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type');
-  const cacheKey = type === 'clients' ? 'campaigns:clients' : 'campaigns:list';
+  const cacheKey = listKey(user.tenantId, 'campaigns', type === 'clients' ? 'clients' : 'list');
 
   const cached = await cacheGet<any>(cacheKey);
   if (cached) return NextResponse.json(cached, {
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await cacheDel('campaigns:');
+    await invalidateList(user.tenantId, 'campaigns');
     return NextResponse.json(campaign, { status: 201 });
   } catch (err) {
     return handleApiError('api/campaigns POST', err);

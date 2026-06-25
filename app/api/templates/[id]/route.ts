@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateTemplateSchema } from '@/lib/validation/schemas';
+import { invalidateList } from '@/lib/cache';
 
 export async function GET(
   _req: NextRequest,
@@ -50,6 +51,7 @@ export async function PUT(
     },
   });
 
+  await invalidateList(user.tenantId, 'templates');
   return NextResponse.json(template);
 }
 
@@ -72,5 +74,6 @@ export async function DELETE(
   }
 
   await prisma.template.delete({ where: { id } });
+  await invalidateList(user.tenantId, 'templates');
   return NextResponse.json({ success: true });
 }

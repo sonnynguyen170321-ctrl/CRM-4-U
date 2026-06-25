@@ -65,3 +65,18 @@ export async function cacheDel(prefix: string): Promise<void> {
     // silently fail — cache is optional
   }
 }
+
+// ─── Tenant-scoped list-cache helpers ────────────────────────────────────────
+// Cached list endpoints (campaigns / sequences / templates) are org-wide *within a
+// tenant*, so keys must be tenant-scoped to avoid cross-tenant reads. `listKey` builds
+// the read key and `invalidateList` clears the whole tenant+resource prefix on writes —
+// defining the prefix in one place so reads and invalidations can never drift apart.
+const TENANT_FALLBACK = 'default-tenant';
+
+export function listKey(tenantId: string | undefined, resource: string, variant: string): string {
+  return `${tenantId ?? TENANT_FALLBACK}:${resource}:${variant}`;
+}
+
+export async function invalidateList(tenantId: string | undefined, resource: string): Promise<void> {
+  await cacheDel(`${tenantId ?? TENANT_FALLBACK}:${resource}:`);
+}

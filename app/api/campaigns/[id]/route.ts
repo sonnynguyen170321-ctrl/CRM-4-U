@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
+import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { invalidateList } from '@/lib/cache';
 
 export async function PUT(
   req: NextRequest,
@@ -11,6 +13,7 @@ export async function PUT(
 ) {
   const userOrRes = await requireRole('floor_manager');
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
   const parsed = await parseBody(req, updateCampaignSchema);
@@ -32,6 +35,7 @@ export async function PUT(
       include: { client: true },
     });
 
+    await invalidateList(user.tenantId, 'campaigns');
     return NextResponse.json(campaign);
   } catch (err) {
     return handleApiError('api/campaigns/[id] PUT', err);

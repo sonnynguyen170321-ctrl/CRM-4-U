@@ -5,7 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
-import { cacheGet, cacheSet, cacheDel } from '@/lib/cache';
+import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 
 const CACHE_TTL = 60;
 
@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  const user = userOrRes as SessionUser;
   try {
     const showArchived = new URL(req.url).searchParams.get('archived') === '1';
-    const cacheKey = `sequences:${showArchived}`;
+    const cacheKey = listKey(user.tenantId, 'sequences', String(showArchived));
 
     const cached = await cacheGet<any[]>(cacheKey);
     if (cached) return NextResponse.json(cached, {
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
       include: { steps: { orderBy: { order: 'asc' } } },
     });
 
-    await cacheDel('sequences:');
+    await invalidateList(user.tenantId, 'sequences');
     return NextResponse.json(sequence, { status: 201 });
   } catch (err) {
     return handleApiError('api/sequences POST', err);
