@@ -43,12 +43,25 @@ export async function cacheSet<T>(key: string, value: T, ttl: number = 60): Prom
   }
 }
 
-export async function cacheDel(key: string): Promise<void> {
+/**
+ * Invalidate every cached key that starts with `prefix` (e.g. `cacheDel('campaigns:')`
+ * clears `campaigns:list` + `campaigns:clients`). Callers pass a prefix, and the GET
+ * handlers cache under keyed variants (`sequences:false`, `templates:<channel>:<search>`),
+ * so a single-key delete would miss them — we SCAN + DEL the whole prefix instead. Uses a
+ * non-blocking cursor scan; still a safe no-op when Redis is absent.
+ */
+export async function cacheDel(prefix: string): Promise<void> {
   const c = getClient();
   if (!c) return;
   try {
-    await c.del(`${CACHE_PREFIX}${key}`);
+    const pattern = `${CACHE_PREFIX}${prefix}*`;
+    let cursor = '0';
+    do {
+      const [next, keys] = await c.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = next;
+      if (keys.length > 0) await c.del(...keys);
+    } while (cursor !== '0');
   } catch {
-    // silently fail
+    // silently fail — cache is optional
   }
 }
