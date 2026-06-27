@@ -15,6 +15,7 @@ export const activityType = z.enum([
   'whatsapp_sent', 'whatsapp_message', 'note_added', 'stage_changed',
   'task_completed', 'task_skipped', 'lead_created', 'meeting_booked',
   'sequence_enrolled', 'sequence_completed', 'sequence_unenrolled',
+  'email_task_completed', 'lead_reassigned',
 ]);
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
@@ -34,6 +35,9 @@ export const createLeadSchema = z.object({
   source: shortText.nullish(),
   tags: z.array(z.string().max(60)).max(30).optional(),
   priority: priority.optional(),
+}).refine(data => data.stage !== 'sequence_active', {
+  message: "Cannot create lead directly in sequence_active stage",
+  path: ['stage'],
 });
 
 export const updateLeadSchema = z.object({
@@ -47,11 +51,12 @@ export const updateLeadSchema = z.object({
   whatsApp: z.string().max(40).nullish().optional(),
   stage: leadStage.optional(),
   assignedToId: id.optional(),
-  sequenceId: id.nullish().optional(),
-  sequenceStep: z.number().int().min(1).max(100).nullish().optional(),
   priority: priority.optional(),
   tags: z.array(z.string().max(60)).max(30).optional(),
   lastContactedAt: isoDate.nullish().optional(),
+}).refine(data => data.stage !== 'sequence_active', {
+  message: "Cannot update lead directly to sequence_active stage",
+  path: ['stage'],
 });
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
@@ -115,8 +120,8 @@ export const updateTemplateSchema = createTemplateSchema.partial();
 export const sendEmailSchema = z.object({
   accountId: id,
   to: z.string().email().max(320),
-  subject: z.string().max(998).optional(),
-  body: longText.optional(),
+  subject: z.string().min(1).max(998).optional(),
+  body: longText.min(1).optional(),
   text: longText.optional(),
   html: longText.optional(),
   replyTo: z.string().email().max(320).optional(),
@@ -189,6 +194,13 @@ export const createCampaignSchema = z.object({
   targetGeo: shortText.nullish().optional(),
   status: campaignStatus.optional(),
   startDate: isoDate.optional(),
+});
+
+export const updateCampaignSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  targetVertical: shortText.nullish().optional(),
+  targetGeo: shortText.nullish().optional(),
+  status: campaignStatus.optional(),
 });
 
 export const markNotificationSchema = z.object({

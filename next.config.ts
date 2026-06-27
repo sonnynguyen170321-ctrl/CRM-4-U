@@ -1,19 +1,32 @@
 import type { NextConfig } from "next";
 
+// Security headers applied to every response. HSTS is harmless over plain HTTP (browsers
+// ignore it) and enforced once the app is served over TLS behind the load balancer.
+const SECURITY_HEADERS = [
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+];
+
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
-  // `@aws-sdk/client-kms` is an OPTIONAL, lazily-imported dependency in lib/crypto.ts
-  // (only loaded when KMS_KEY_ARN is set in production). Keep it out of the bundle so
-  // the large AWS SDK is required at runtime rather than bundled into the function.
-  // (The "module not found" dev warning is silenced at the import site via a
-  // turbopackIgnore magic comment in lib/crypto.ts.)
   serverExternalPackages: ['@aws-sdk/client-kms'],
-  // Tree-shake large barrel imports so only the icons/charts actually used ship
-  // to the client, rather than the entire library surface.
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
+  async headers() {
+    return [{ source: '/:path*', headers: SECURITY_HEADERS }];
+  },
 };
 
-export default nextConfig;
+let config = nextConfig;
+
+if (process.env.ANALYZE === 'true') {
+  const withBundleAnalyzer = require('@next/bundle-analyzer')({ enabled: true });
+  config = withBundleAnalyzer(config);
+}
+
+export default config;

@@ -18,10 +18,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import TeamAccountsPanel from '@/components/settings/TeamAccountsPanel';
+import { NOTIF_EVENTS, NOTIF_PREFS_KEY, NOTIF_PREFS_EVENT, readNotifPrefs } from '@/lib/notifications/prefs';
 
 interface EmailAccount {
   id: string;
@@ -82,6 +84,7 @@ function SettingsPageInner() {
   const [profileFirstName, setProfileFirstName] = useState('');
   const [profileLastName, setProfileLastName] = useState('');
   const [profileTimezone, setProfileTimezone] = useState('Asia/Ho_Chi_Minh');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [connectedEmails, setConnectedEmails] = useState<EmailAccount[]>([]);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -106,17 +109,33 @@ function SettingsPageInner() {
   const [newUserRole, setNewUserRole] = useState('sdr');
   const [savingUser, setSavingUser] = useState(false);
   const [exportingData, setExportingData] = useState(false);
-  // Notification prefs — persisted to localStorage
-  const NOTIF_EVENTS = [
-    { key: 'task_overdue', label: 'Task Overdue', always: false },
-    { key: 'reminder_due', label: 'Reminder Due', always: true },
-    { key: 'sequence_step_due', label: 'Sequence Step Due Today', always: false },
-    { key: 'sequence_completed', label: 'Sequence Completed', always: false },
-    { key: 'lead_stage_changed', label: 'Lead Stage Changed (by others)', always: false },
-    { key: 'lead_reassigned', label: 'Lead Reassigned to Me', always: true },
-    { key: 'meeting_booked', label: 'Meeting Booked', always: false },
-    { key: 'sdr_overdue_alert', label: 'SDR Overdue Alert (managers)', always: false },
-  ];
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv');
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
+  // Edit-user state (Admin → User Management)
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editFirst, setEditFirst] = useState('');
+  const [editLast, setEditLast] = useState('');
+  const [editRole, setEditRole] = useState('sdr');
+  const [editPassword, setEditPassword] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  // Campaign management state (Admin → Campaigns)
+  const [clientOptions, setClientOptions] = useState<{ id: string; name: string }[]>([]);
+  const [showNewCampaignForm, setShowNewCampaignForm] = useState(false);
+  const [campName, setCampName] = useState('');
+  const [campClientId, setCampClientId] = useState('');
+  const [campNewClient, setCampNewClient] = useState('');
+  const [campVertical, setCampVertical] = useState('');
+  const [campGeo, setCampGeo] = useState('');
+  const [campStatus, setCampStatus] = useState('active');
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [editCampName, setEditCampName] = useState('');
+  const [editCampStatus, setEditCampStatus] = useState('active');
+  const [editCampVertical, setEditCampVertical] = useState('');
+  const [editCampGeo, setEditCampGeo] = useState('');
+  const [savingCampaignEdit, setSavingCampaignEdit] = useState(false);
+  // Notification prefs — persisted to localStorage, consumed by the Topbar bell (NOTIF_EVENTS shared).
   const [defaultLeadView, setDefaultLeadView] = useState<'kanban' | 'table'>('kanban');
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
@@ -128,17 +147,17 @@ function SettingsPageInner() {
     const savedItems = parseInt(localStorage.getItem('crm:itemsPerPage') ?? '25', 10);
     if ([25, 50, 100].includes(savedItems)) setItemsPerPage(savedItems);
 
-    try {
-      const savedNotifs = JSON.parse(localStorage.getItem('crm:notifPrefs') ?? '{}');
-      setNotifPrefs(savedNotifs);
-    } catch { /* ignore corrupt localStorage */ }
+    setNotifPrefs(readNotifPrefs());
   }, []);
   const isNotifEnabled = (key: string) => notifPrefs[key] !== false;
   const toggleNotif = (key: string, always: boolean) => {
     if (always) return;
     setNotifPrefs((prev) => {
       const next = { ...prev, [key]: !isNotifEnabled(key) };
-      if (typeof window !== 'undefined') localStorage.setItem('crm:notifPrefs', JSON.stringify(next));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next));
+        window.dispatchEvent(new Event(NOTIF_PREFS_EVENT));
+      }
       return next;
     });
   };
@@ -151,6 +170,7 @@ function SettingsPageInner() {
           setProfileFirstName(data.firstName ?? '');
           setProfileLastName(data.lastName ?? '');
           setProfileTimezone(data.timezone ?? 'Asia/Ho_Chi_Minh');
+          setProfileAvatarUrl(data.avatarUrl ?? '');
         }
       })
       .catch(() => {});
@@ -176,6 +196,10 @@ function SettingsPageInner() {
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setAdminClients(Array.isArray(data) ? data : []))
       .catch(() => {});
+    fetch('/api/campaigns?type=clients')
+      .then((r) => (r.ok ? r.json() : { clients: [] }))
+      .then((data) => setClientOptions(Array.isArray(data?.clients) ? data.clients : []))
+      .catch(() => {});
   }, [currentRole]);
 
   const handleSaveProfile = async () => {
@@ -183,10 +207,12 @@ function SettingsPageInner() {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName: profileFirstName, lastName: profileLastName, timezone: profileTimezone }),
+      body: JSON.stringify({ firstName: profileFirstName, lastName: profileLastName, timezone: profileTimezone, avatarUrl: profileAvatarUrl }),
     });
     setIsSavingProfile(false);
     if (res.ok) {
+      // Let the Topbar avatar update without a reload.
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('crm:profile-updated'));
       showToast('Profile updated successfully!', 'success');
     } else {
       showToast('Failed to update profile', 'error');
@@ -322,28 +348,150 @@ function SettingsPageInner() {
     }
   };
 
+  const handleStartEditUser = (u: any) => {
+    setEditingUserId(u.id);
+    setEditFirst(u.firstName ?? '');
+    setEditLast(u.lastName ?? '');
+    setEditRole(u.role ?? 'sdr');
+    setEditPassword('');
+  };
+
+  const handleSaveEditUser = async (userId: string) => {
+    if (!editFirst.trim() || !editLast.trim()) {
+      showToast('First and last name are required', 'error');
+      return;
+    }
+    if (editPassword && editPassword.length < 8) {
+      showToast('New password must be at least 8 characters', 'error');
+      return;
+    }
+    setSavingEdit(true);
+    const body: Record<string, unknown> = { firstName: editFirst.trim(), lastName: editLast.trim(), role: editRole };
+    if (editPassword) body.newPassword = editPassword;
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSavingEdit(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setAdminUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      setEditingUserId(null);
+      showToast(editPassword ? 'User updated & password reset' : 'User updated', 'success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error ?? 'Failed to update user', 'error');
+    }
+  };
+
+  const handleCreateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!campName.trim()) return;
+    if (!campClientId && !campNewClient.trim()) {
+      showToast('Select a client or enter a new client name', 'error');
+      return;
+    }
+    setSavingCampaign(true);
+    const body: Record<string, unknown> = {
+      name: campName.trim(),
+      status: campStatus,
+      targetVertical: campVertical || undefined,
+      targetGeo: campGeo || undefined,
+    };
+    if (campClientId) body.clientId = campClientId;
+    else body.newClientName = campNewClient.trim();
+    const res = await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSavingCampaign(false);
+    if (res.ok) {
+      const created = await res.json();
+      setAdminClients((prev) => [created, ...prev]);
+      setCampName(''); setCampClientId(''); setCampNewClient(''); setCampVertical(''); setCampGeo(''); setCampStatus('active');
+      setShowNewCampaignForm(false);
+      showToast(`Campaign "${created.name}" created`, 'success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error ?? 'Failed to create campaign', 'error');
+    }
+  };
+
+  const handleStartEditCampaign = (c: any) => {
+    setEditingCampaignId(c.id);
+    setEditCampName(c.name ?? '');
+    setEditCampStatus(c.status ?? 'active');
+    setEditCampVertical(c.targetVertical ?? '');
+    setEditCampGeo(c.targetGeo ?? '');
+  };
+
+  const handleSaveEditCampaign = async (id: string) => {
+    if (!editCampName.trim()) {
+      showToast('Campaign name is required', 'error');
+      return;
+    }
+    setSavingCampaignEdit(true);
+    const res = await fetch(`/api/campaigns/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editCampName.trim(), status: editCampStatus, targetVertical: editCampVertical || null, targetGeo: editCampGeo || null }),
+    });
+    setSavingCampaignEdit(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setAdminClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+      setEditingCampaignId(null);
+      showToast('Campaign updated', 'success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error ?? 'Failed to update campaign', 'error');
+    }
+  };
+
   const handleExportAllData = async () => {
     setExportingData(true);
     try {
       const res = await fetch('/api/leads?limit=9999');
-      const leads = res.ok ? await res.json() : [];
-      const rows = [
-        ['ID', 'First Name', 'Last Name', 'Company', 'Title', 'Email', 'Phone', 'Stage', 'Priority', 'Assigned To', 'Campaign', 'Source', 'Tags', 'Created'],
-        ...leads.map((l: any) => [
-          l.id, l.firstName, l.lastName, l.company, l.title ?? '', l.email ?? '', l.phone ?? '',
-          l.stage, l.priority, `${l.assignedTo?.firstName ?? ''} ${l.assignedTo?.lastName ?? ''}`.trim(),
-          l.campaign?.name ?? '', l.source ?? '', (l.tags ?? []).join(';'), l.createdAt?.slice(0, 10) ?? '',
-        ]),
-      ];
-      const csv = rows.map((r) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const allLeads = res.ok ? await res.json() : [];
+      // Date-range filter on createdAt (inclusive). An empty bound is open-ended.
+      const fromTs = exportFrom ? new Date(`${exportFrom}T00:00:00`).getTime() : null;
+      const toTs = exportTo ? new Date(`${exportTo}T23:59:59.999`).getTime() : null;
+      const leads = (Array.isArray(allLeads) ? allLeads : []).filter((l: any) => {
+        if (!l.createdAt) return fromTs === null && toTs === null;
+        const t = new Date(l.createdAt).getTime();
+        if (fromTs !== null && t < fromTs) return false;
+        if (toTs !== null && t > toTs) return false;
+        return true;
+      });
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      let blob: Blob;
+      let filename: string;
+      if (exportFormat === 'json') {
+        blob = new Blob([JSON.stringify(leads, null, 2)], { type: 'application/json;charset=utf-8;' });
+        filename = `telestar-leads-${stamp}.json`;
+      } else {
+        const rows = [
+          ['ID', 'First Name', 'Last Name', 'Company', 'Title', 'Email', 'Phone', 'Stage', 'Priority', 'Assigned To', 'Campaign', 'Source', 'Tags', 'Created'],
+          ...leads.map((l: any) => [
+            l.id, l.firstName, l.lastName, l.company, l.title ?? '', l.email ?? '', l.phone ?? '',
+            l.stage, l.priority, `${l.assignedTo?.firstName ?? ''} ${l.assignedTo?.lastName ?? ''}`.trim(),
+            l.campaign?.name ?? '', l.source ?? '', (l.tags ?? []).join(';'), l.createdAt?.slice(0, 10) ?? '',
+          ]),
+        ];
+        const csv = rows.map((r) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+        blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        filename = `telestar-leads-${stamp}.csv`;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `telestar-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`Exported ${leads.length} leads`, 'success');
+      showToast(`Exported ${leads.length} leads (${exportFormat.toUpperCase()})`, 'success');
     } finally {
       setExportingData(false);
     }
@@ -369,6 +517,26 @@ function SettingsPageInner() {
               <Globe className="w-4 h-4 text-brand-orange" />
               <span>Personal Profile</span>
             </h3>
+            <div className="flex items-center gap-3">
+              {profileAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profileAvatarUrl} alt="Your avatar" className="w-12 h-12 rounded-full object-cover border border-card-border flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-brand-red/10 text-brand-red flex items-center justify-center font-bold text-lg flex-shrink-0">
+                  {(profileFirstName?.[0] ?? currentUser?.email?.[0] ?? '?').toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 space-y-1 text-xs">
+                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Avatar URL</label>
+                <input
+                  type="url"
+                  value={profileAvatarUrl}
+                  onChange={(e) => setProfileAvatarUrl(e.target.value)}
+                  placeholder="https://…/avatar.png  (leave blank to use initials)"
+                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
@@ -838,17 +1006,55 @@ function SettingsPageInner() {
 
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {adminUsers.map((u) => (
-                    <div key={u.id} className={`flex items-center justify-between p-2 rounded-lg border ${u.isActive ? 'border-card-border bg-background/40' : 'border-card-border/40 bg-card-border/10 opacity-60'}`}>
-                      <div>
-                        <span className="font-semibold text-text-primary">{u.firstName} {u.lastName}</span>
-                        <span className="text-text-muted ml-2 font-mono text-[10px]">{u.role.replace('_', ' ')}</span>
-                        {!u.isActive && <span className="ml-2 text-[9px] font-mono text-brand-red">DEACTIVATED</span>}
+                    <div key={u.id} className={`rounded-lg border ${u.isActive ? 'border-card-border bg-background/40' : 'border-card-border/40 bg-card-border/10 opacity-60'}`}>
+                      <div className="flex items-center justify-between p-2">
+                        <div>
+                          <span className="font-semibold text-text-primary">{u.firstName} {u.lastName}</span>
+                          <span className="text-text-muted ml-2 font-mono text-[10px]">{u.role.replace('_', ' ')}</span>
+                          {!u.isActive && <span className="ml-2 text-[9px] font-mono text-brand-red">DEACTIVATED</span>}
+                        </div>
+                        {u.isActive && (
+                          <div className="flex items-center gap-0.5">
+                            <button onClick={() => (editingUserId === u.id ? setEditingUserId(null) : handleStartEditUser(u))}
+                              className="text-text-muted hover:text-brand-orange transition-colors p-1 rounded" title="Edit user">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeactivateUser(u.id, `${u.firstName} ${u.lastName}`)}
+                              className="text-text-muted hover:text-brand-red transition-colors p-1 rounded" title="Deactivate user">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {u.isActive && (
-                        <button onClick={() => handleDeactivateUser(u.id, `${u.firstName} ${u.lastName}`)}
-                          className="text-text-muted hover:text-brand-red transition-colors p-1 rounded" title="Deactivate user">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+
+                      {editingUserId === u.id && (
+                        <div className="border-t border-card-border/60 p-2.5 space-y-2 bg-card-bg/60">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input value={editFirst} onChange={(e) => setEditFirst(e.target.value)} placeholder="First name"
+                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                            <input value={editLast} onChange={(e) => setEditLast(e.target.value)} placeholder="Last name"
+                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                          </div>
+                          <select value={editRole} onChange={(e) => setEditRole(e.target.value)}
+                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                            <option value="sdr">SDR</option>
+                            <option value="leadgen">Leadgen</option>
+                            <option value="team_lead">Team Lead</option>
+                            <option value="floor_manager">Floor Manager</option>
+                            <option value="director">Director</option>
+                          </select>
+                          <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} autoComplete="new-password"
+                            placeholder="Reset password (optional, 8+ chars)"
+                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                          <div className="flex gap-2">
+                            <button onClick={() => handleSaveEditUser(u.id)} disabled={savingEdit}
+                              className="flex-1 py-1.5 bg-brand-red hover:bg-brand-orange text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-1">
+                              {savingEdit && <Loader2 className="w-3 h-3 animate-spin" />}Save Changes
+                            </button>
+                            <button onClick={() => setEditingUserId(null)}
+                              className="px-3 py-1.5 border border-card-border text-text-muted hover:text-text-primary rounded-lg transition-colors">Cancel</button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -856,20 +1062,99 @@ function SettingsPageInner() {
                 </div>
               </div>
 
-              {/* Active Campaigns */}
-              {adminClients.length > 0 && (
-                <div className="space-y-2 border-t border-card-border/50 pt-4">
-                  <h4 className="font-bold text-text-primary">Active Campaigns</h4>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {adminClients.map((c: any) => (
-                      <div key={c.id} className="flex items-center justify-between p-2 bg-background/40 border border-card-border rounded-lg">
-                        <span className="text-text-primary font-semibold">{c.name}</span>
-                        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-card-border text-text-muted'}`}>{c.status}</span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Campaign Management */}
+              <div className="space-y-2.5 border-t border-card-border/50 pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-text-primary">Campaigns</h4>
+                  <button onClick={() => setShowNewCampaignForm((v) => !v)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange font-mono transition-colors">
+                    <Plus className="w-3 h-3" /> Add Campaign
+                  </button>
                 </div>
-              )}
+
+                {showNewCampaignForm && (
+                  <form onSubmit={handleCreateCampaign} className="bg-background border border-card-border rounded-xl p-3 space-y-2">
+                    <input value={campName} onChange={(e) => setCampName(e.target.value)} placeholder="Campaign name" required
+                      className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                    <select value={campClientId} onChange={(e) => setCampClientId(e.target.value)}
+                      className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                      <option value="">+ New client…</option>
+                      {clientOptions.map((cl) => (<option key={cl.id} value={cl.id}>{cl.name}</option>))}
+                    </select>
+                    {!campClientId && (
+                      <input value={campNewClient} onChange={(e) => setCampNewClient(e.target.value)} placeholder="New client name"
+                        className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={campVertical} onChange={(e) => setCampVertical(e.target.value)} placeholder="Vertical (optional)"
+                        className="bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                      <input value={campGeo} onChange={(e) => setCampGeo(e.target.value)} placeholder="Geo (optional)"
+                        className="bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                    </div>
+                    <select value={campStatus} onChange={(e) => setCampStatus(e.target.value)}
+                      className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                      <option value="active">Active</option>
+                      <option value="paused">Paused</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={savingCampaign}
+                        className="flex-1 py-1.5 bg-brand-red hover:bg-brand-orange text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-1">
+                        {savingCampaign && <Loader2 className="w-3 h-3 animate-spin" />}Create Campaign
+                      </button>
+                      <button type="button" onClick={() => setShowNewCampaignForm(false)}
+                        className="px-3 py-1.5 border border-card-border text-text-muted hover:text-text-primary rounded-lg transition-colors">Cancel</button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {adminClients.map((c: any) => (
+                    <div key={c.id} className="rounded-lg border border-card-border bg-background/40">
+                      <div className="flex items-center justify-between p-2">
+                        <div className="min-w-0">
+                          <span className="text-text-primary font-semibold truncate">{c.name}</span>
+                          {c.client?.name && <span className="text-text-muted ml-2 font-mono text-[10px]">{c.client.name}</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : c.status === 'paused' ? 'bg-amber-500/10 text-amber-500' : 'bg-card-border text-text-muted'}`}>{c.status}</span>
+                          <button onClick={() => (editingCampaignId === c.id ? setEditingCampaignId(null) : handleStartEditCampaign(c))}
+                            className="text-text-muted hover:text-brand-orange transition-colors p-1 rounded" title="Edit campaign">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      {editingCampaignId === c.id && (
+                        <div className="border-t border-card-border/60 p-2.5 space-y-2 bg-card-bg/60">
+                          <input value={editCampName} onChange={(e) => setEditCampName(e.target.value)} placeholder="Campaign name"
+                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input value={editCampVertical} onChange={(e) => setEditCampVertical(e.target.value)} placeholder="Vertical"
+                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                            <input value={editCampGeo} onChange={(e) => setEditCampGeo(e.target.value)} placeholder="Geo"
+                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                          </div>
+                          <select value={editCampStatus} onChange={(e) => setEditCampStatus(e.target.value)}
+                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleSaveEditCampaign(c.id)} disabled={savingCampaignEdit}
+                              className="flex-1 py-1.5 bg-brand-red hover:bg-brand-orange text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-1">
+                              {savingCampaignEdit && <Loader2 className="w-3 h-3 animate-spin" />}Save Changes
+                            </button>
+                            <button onClick={() => setEditingCampaignId(null)}
+                              className="px-3 py-1.5 border border-card-border text-text-muted hover:text-text-primary rounded-lg transition-colors">Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {adminClients.length === 0 && <p className="text-text-muted font-mono text-[11px]">No campaigns yet.</p>}
+                </div>
+              </div>
 
               {/* Team & Accounts assignment (org-wide for director) */}
               <div className="border-t border-card-border/50 pt-4">
@@ -877,12 +1162,40 @@ function SettingsPageInner() {
               </div>
 
               {/* Data Export */}
-              <div className="border-t border-card-border/50 pt-4 space-y-2">
+              <div className="border-t border-card-border/50 pt-4 space-y-2.5">
                 <h4 className="font-bold text-text-primary">Data Export</h4>
+                {/* Format toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-text-muted uppercase">Format</span>
+                  <div className="flex bg-card-border rounded-lg p-0.5 gap-0.5">
+                    {(['csv', 'json'] as const).map((fmt) => (
+                      <button
+                        key={fmt}
+                        onClick={() => setExportFormat(fmt)}
+                        className={`px-3 py-1 rounded text-[10px] font-bold font-mono uppercase transition-all ${exportFormat === fmt ? 'bg-brand-red text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                      >
+                        {fmt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Date range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold font-mono text-text-muted uppercase block">From (optional)</label>
+                    <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)}
+                      className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold font-mono text-text-muted uppercase block">To (optional)</label>
+                    <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
+                      className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
+                  </div>
+                </div>
                 <button onClick={handleExportAllData} disabled={exportingData}
                   className="w-full py-2 border border-card-border hover:border-brand-orange bg-background hover:bg-brand-orange/5 text-text-primary text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-60">
                   {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-brand-orange" />}
-                  Export All Leads as CSV
+                  Export Leads as {exportFormat.toUpperCase()}
                 </button>
               </div>
 

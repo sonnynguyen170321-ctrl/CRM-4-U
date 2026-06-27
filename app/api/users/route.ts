@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole, getVisibleUserIds, type SessionUser } from '@/lib/auth';
+import { requireAuth, requireRole, getVisibleUserIds, type SessionUser } from '@/lib/auth';
 import { hash } from 'bcryptjs';
 import { parseBody } from '@/lib/validation/core';
 import { createUserSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 
 export async function GET() {
-  const userOrRes = await requireRole('leadgen');
+  // Any authenticated user may read the user list; results are scoped by
+  // getVisibleUserIds (SDR → just themselves, pod members for managers, etc.).
+  // The list powers assignee names/filters on shared pages (Leads), so gating it
+  // to managers only made SDRs throw a 403 on every Leads load.
+  const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
   const visibleIds = await getVisibleUserIds(user);

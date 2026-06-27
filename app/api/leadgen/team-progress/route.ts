@@ -35,7 +35,7 @@ export async function GET(_req: NextRequest) {
         email: true,
         avatarUrl: true,
       },
-    });
+    })
 
     const memberStats = await Promise.all(
       members.map(async (member) => {

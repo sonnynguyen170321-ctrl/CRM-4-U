@@ -64,6 +64,18 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   try {
+    let lead: { id: string; firstName: string; lastName: string; assignedToId: string | null; campaignId: string | null; tenantId: string } | null = null;
+    if (body.leadId) {
+      lead = await prisma.lead.findUnique({
+        where: { id: body.leadId },
+        select: { id: true, firstName: true, lastName: true, assignedToId: true, campaignId: true, tenantId: true },
+      });
+      if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+      if (!(await canAccessLead(user, lead))) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+
     const activity = await prisma.activity.create({
       data: {
         userId: user.id,
@@ -77,27 +89,21 @@ export async function POST(req: NextRequest) {
     });
 
     if (
-      body.leadId &&
+      lead &&
       (body.type === 'call_logged' || body.type === 'call_made') &&
       (body.metadata as Record<string, unknown> | undefined)?.outcome === 'callback_requested'
     ) {
-      const lead = await prisma.lead.findUnique({
-        where: { id: body.leadId },
-        select: { firstName: true, lastName: true },
+      await prisma.task.create({
+        data: {
+          leadId: lead.id,
+          userId: lead.assignedToId ?? user.id,
+          type: 'phone',
+          title: `Callback: ${lead.firstName} ${lead.lastName}`,
+          description: 'Callback requested on previous call',
+          dueDate: nextBusinessDay(new Date()),
+          priority: 'high',
+        },
       });
-      if (lead) {
-        await prisma.task.create({
-          data: {
-            leadId: body.leadId,
-            userId: user.id,
-            type: 'phone',
-            title: `Callback: ${lead.firstName} ${lead.lastName}`,
-            description: 'Callback requested on previous call',
-            dueDate: nextBusinessDay(new Date()),
-            priority: 'high',
-          },
-        });
-      }
     }
 
     return NextResponse.json(activity, { status: 201 });

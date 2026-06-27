@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRole } from '@/lib/auth';
+import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { invalidateList } from '@/lib/cache';
 
 export async function GET(
   _req: NextRequest,
@@ -39,6 +41,7 @@ export async function PUT(
 ) {
   const userOrRes = await requireRole('team_lead');
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
   const parsed = await parseBody(req, updateSequenceSchema);
@@ -77,6 +80,7 @@ export async function PUT(
       include: { steps: { orderBy: { order: 'asc' } } },
     });
 
+    await invalidateList(user.tenantId, 'sequences');
     return NextResponse.json(sequence);
   } catch (err) {
     return handleApiError('api/sequences/[id] PUT', err);
@@ -89,6 +93,7 @@ export async function DELETE(
 ) {
   const userOrRes = await requireRole('team_lead');
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
 
@@ -111,6 +116,7 @@ export async function DELETE(
       data: { isArchived: true, isActive: false },
     });
 
+    await invalidateList(user.tenantId, 'sequences');
     return NextResponse.json({ success: true, archived: true });
   } catch (err) {
     return handleApiError('api/sequences/[id] DELETE', err);

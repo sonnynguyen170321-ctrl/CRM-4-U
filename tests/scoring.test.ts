@@ -8,7 +8,7 @@ const base = {
   company: 'VinaTech',
   email: 'anh@vinatech.vn',
   stage: 'new',
-  priority: 'warm',
+  crmPriorityScore: 'warm',
   createdAt: new Date().toISOString(),
 };
 
@@ -18,7 +18,7 @@ describe('scoreLead', () => {
     const hot = scoreLead({
       ...base,
       stage: 'replied',
-      priority: 'hot',
+      crmPriorityScore: 'hot',
       phone: '123',
       linkedIn: 'x',
       whatsApp: 'y',
@@ -34,7 +34,7 @@ describe('scoreLead', () => {
       ...base,
       email: '',
       stage: 'lost',
-      priority: 'cold',
+      crmPriorityScore: 'cold',
     });
     expect(cold.score).toBeLessThan(35);
     expect(cold.label).toBe('cold');

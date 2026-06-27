@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import { getLeadWhereScope, getVisibleUserIds, type SessionUser } from '@/lib/auth';
 
 export interface SequenceAnalytics {
   totalEnrolled: number;
@@ -150,10 +152,10 @@ export async function getDashboardStats(userId: string) {
     prisma.activity.count({ where: { userId, type: 'email_sent', createdAt: { gte: weekAgo } } }),
     prisma.activity.count({ where: { userId, type: 'email_sent', createdAt: { gte: monthAgo } } }),
     prisma.activity.count({
-      where: { userId: { not: userId }, type: 'stage_changed', metadata: { path: ['to'], equals: 'replied' }, createdAt: { gte: todayStart } },
+      where: { lead: { assignedToId: userId }, type: 'stage_changed', metadata: { path: ['to'], equals: 'replied' }, createdAt: { gte: todayStart } },
     }),
     prisma.activity.count({
-      where: { userId: { not: userId }, type: 'stage_changed', metadata: { path: ['to'], equals: 'replied' }, createdAt: { gte: weekAgo } },
+      where: { lead: { assignedToId: userId }, type: 'stage_changed', metadata: { path: ['to'], equals: 'replied' }, createdAt: { gte: weekAgo } },
     }),
     prisma.lead.count({ where: { assignedToId: userId, emailInvalid: true } }),
     prisma.sequence.findMany({
@@ -174,5 +176,96 @@ export async function getDashboardStats(userId: string) {
     weekReplies,
     totalBounces,
     sequences: topSequences,
+  };
+}
+
+export interface ScopedSequenceStats {
+  totalLeads: number;
+  activeEnrollments: number;
+  todaySends: number;
+  weekSends: number;
+  monthSends: number;
+  todayReplies: number;
+  weekReplies: number;
+  totalBounces: number;
+  sequences: { id: string; name: string; activeLeads: number; _count: { leads: number } }[];
+}
+
+/**
+ * Role-scoped sequence performance for the Team View / Leadgen Manager report.
+ *
+ * Same shape as getDashboardStats but aggregated across the viewer's visibility instead of
+ * their own assigned leads — Director sees all, FM/TL their pod∪accounts, Leadgen Manager all,
+ * Leadgen member their campaigns. Reuses the canonical scope helpers in lib/auth (no new
+ * scoping logic): getLeadWhereScope for the lead axis, getVisibleUserIds for the send (activity) axis.
+ */
+export async function getScopedSequenceStats(user: SessionUser): Promise<ScopedSequenceStats> {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekAgo = new Date(todayStart.getTime() - 7 * 86400000);
+  const monthAgo = new Date(todayStart.getTime() - 30 * 86400000);
+
+  const leadScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
+  const visibleIds = await getVisibleUserIds(user); // null = unrestricted (director / leadgen-mgr)
+
+  const sendWhere: Prisma.ActivityWhereInput = {
+    type: 'email_sent',
+    ...(visibleIds ? { userId: { in: visibleIds } } : {}),
+  };
+  const replyWhere = (gte: Date): Prisma.ActivityWhereInput => ({
+    lead: leadScope,
+    type: 'stage_changed',
+    metadata: { path: ['to'], equals: 'replied' },
+    createdAt: { gte },
+  });
+  // Compose the scope with AND so an extra filter can never widen the viewer's visibility.
+  const scopedLead = (extra: Prisma.LeadWhereInput): Prisma.LeadWhereInput => ({ AND: [leadScope, extra] });
+
+  const [
+    totalLeads,
+    activeEnrollments,
+    todaySends,
+    weekSends,
+    monthSends,
+    todayReplies,
+    weekReplies,
+    totalBounces,
+    sequences,
+  ] = await Promise.all([
+    prisma.lead.count({ where: leadScope }),
+    prisma.lead.count({ where: scopedLead({ sequenceStatus: 'active' }) }),
+    prisma.activity.count({ where: { ...sendWhere, createdAt: { gte: todayStart } } }),
+    prisma.activity.count({ where: { ...sendWhere, createdAt: { gte: weekAgo } } }),
+    prisma.activity.count({ where: { ...sendWhere, createdAt: { gte: monthAgo } } }),
+    prisma.activity.count({ where: replyWhere(todayStart) }),
+    prisma.activity.count({ where: replyWhere(weekAgo) }),
+    prisma.lead.count({ where: scopedLead({ emailInvalid: true }) }),
+    prisma.sequence.findMany({
+      where: { isArchived: false },
+      select: { id: true, name: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  const seqStats = await Promise.all(
+    sequences.map(async (seq) => {
+      const [enrolled, active] = await Promise.all([
+        prisma.lead.count({ where: scopedLead({ sequenceId: seq.id }) }),
+        prisma.lead.count({ where: scopedLead({ sequenceId: seq.id, sequenceStatus: 'active' }) }),
+      ]);
+      return { id: seq.id, name: seq.name, activeLeads: active, _count: { leads: enrolled } };
+    })
+  );
+
+  return {
+    totalLeads,
+    activeEnrollments,
+    todaySends,
+    weekSends,
+    monthSends,
+    todayReplies,
+    weekReplies,
+    totalBounces,
+    sequences: seqStats,
   };
 }

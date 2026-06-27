@@ -22,6 +22,8 @@ import dynamic from 'next/dynamic';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import LeadgenTeamProgress from '@/components/leadgen/LeadgenTeamProgress';
+import SequencePerformanceReport from '@/components/SequencePerformanceReport';
+import type { ScopedSequenceStats } from '@/lib/sequences/analytics';
 
 // On-demand chunks — the slide-over and import modal render only on interaction.
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
@@ -66,7 +68,7 @@ const PRIORITY_CONFIG = {
 const KANBAN_STAGES = ['new', 'replied', 'meeting_booked', 'won'] as const;
 
 export default function LeadgenPage() {
-  const { currentRole } = useAppContext();
+  const { currentRole, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -84,18 +86,21 @@ export default function LeadgenPage() {
 
   // Leadgen Manager custom states
   const [scope, setScope] = useState<{ kind: 'manager' | 'member'; campaignIds?: string[] } | null>(null);
+  const [seqStats, setSeqStats] = useState<ScopedSequenceStats | null>(null);
   const [managerTab, setManagerTab] = useState<'assign' | 'enrich' | 'outcomes' | 'intake' | 'progress'>('assign');
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [routeCampaignId, setRouteCampaignId] = useState('');
   const [routeSdrId, setRouteSdrId] = useState('');
   const [routing, setRouting] = useState(false);
 
-  // Gate access
+  // Gate access. Wait for the session to resolve first: while it loads, `currentRole`
+  // falls back to 'sdr' (AppContext), which would otherwise bounce a real leadgen user
+  // to '/' — and the dashboard then redirects them back here, causing a bounce loop.
   useEffect(() => {
-    if (currentRole !== 'leadgen') {
+    if (!isSessionLoading && currentRole !== 'leadgen') {
       router.replace('/');
     }
-  }, [currentRole, router]);
+  }, [isSessionLoading, currentRole, router]);
 
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
@@ -129,10 +134,18 @@ export default function LeadgenPage() {
       fetchTeamMembers();
       fetchCampaigns();
 
-      // Get scope
+      // Get scope; Leadgen Managers also load the scoped sequence-performance report.
       fetch('/api/leadgen/scope')
         .then((r) => (r.ok ? r.json() : null))
-        .then((data) => setScope(data))
+        .then((data) => {
+          setScope(data);
+          if (data?.kind === 'manager') {
+            fetch('/api/sequences/team-analytics')
+              .then((r) => (r.ok ? r.json() : null))
+              .then((s) => { if (s) setSeqStats(s); })
+              .catch(() => {});
+          }
+        })
         .catch(() => {});
     }
   }, [currentRole, fetchLeads, fetchTeamMembers, fetchCampaigns]);
@@ -500,6 +513,9 @@ export default function LeadgenPage() {
             {/* T3: Outcomes & Reports */}
             {managerTab === 'outcomes' && (
               <div className="space-y-6">
+                {/* Scoped sequence performance across the leadgen manager's accounts */}
+                <SequencePerformanceReport stats={seqStats} scopeLabel="Across your accounts" />
+
                 {/* Outcomes Grid */}
                 <div className="grid grid-cols-4 gap-4">
                   {[

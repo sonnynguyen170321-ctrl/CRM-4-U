@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createTaskSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -16,10 +17,14 @@ export async function GET(req: NextRequest) {
   const leadId = searchParams.get('leadId');
   const scopeUserId = searchParams.get('userId');
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 86400000);
-  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  const targetIdForTz = (scopeUserId && scopeUserId !== 'all' && user.role !== 'sdr') ? scopeUserId : user.id;
+  const userTzRecord = await prisma.user.findUnique({
+    where: { id: targetIdForTz },
+    select: { timezone: true },
+  });
+  const tz = userTzRecord?.timezone || 'UTC';
+
+  const { start: todayStart, end: todayEnd, yesterdayStart } = getLocalDayBoundaries(new Date(), tz);
 
   let dateFilter: Record<string, any> = {};
   if (tab === 'today') {
@@ -68,7 +73,7 @@ export async function GET(req: NextRequest) {
             firstName: true,
             lastName: true,
             company: true,
-            priority: true,
+            crmPriorityScore: true,
             stage: true,
             tags: true,
           },
@@ -79,11 +84,15 @@ export async function GET(req: NextRequest) {
       take: 500,
     });
 
+    // Expose the lead's priority under its public name (`crmPriorityScore` is the DB field).
+    const normalized = tasks.map((t) =>
+      t.lead ? { ...t, lead: { ...t.lead, priority: t.lead.crmPriorityScore } } : t
+    );
     if (tab === 'overdue') {
-      return NextResponse.json(tasks);
+      return NextResponse.json(normalized);
     }
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    const sorted = tasks.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+    const sorted = normalized.sort((a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
 
     return NextResponse.json(sorted);
   } catch (err) {

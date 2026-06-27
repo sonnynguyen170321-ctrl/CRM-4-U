@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { encrypt } from '@/lib/crypto';
 
 interface GmailConfig {
   accessToken: string;
@@ -20,7 +21,7 @@ export class GmailAdapter implements EmailAdapter {
     this.config = config;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -36,12 +37,17 @@ export class GmailAdapter implements EmailAdapter {
     oauth2Client.on('tokens', async (tokens) => {
       if (tokens.access_token && this.config.accountId) {
         const { prisma } = await import('@/lib/prisma');
+        const [encAccessToken, encRefreshToken] = await Promise.all([
+          encrypt(tokens.access_token),
+          tokens.refresh_token ? encrypt(tokens.refresh_token) : Promise.resolve(undefined),
+        ]);
         await prisma.emailAccount.update({
           where: { id: this.config.accountId },
           data: {
             accessToken: tokens.access_token,
+            encAccessToken,
             tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token, encRefreshToken } : {}),
           },
         });
       }
@@ -66,10 +72,11 @@ export class GmailAdapter implements EmailAdapter {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await gmail.users.messages.send({
+    const msg = await gmail.users.messages.send({
       userId: 'me',
       requestBody: { raw },
     });
+    return msg.data.id ?? undefined;
   }
 
   /** Fetch inbox messages received since `since` (metadata only). */
@@ -88,12 +95,17 @@ export class GmailAdapter implements EmailAdapter {
     oauth2Client.on('tokens', async (tokens) => {
       if (tokens.access_token && this.config.accountId) {
         const { prisma } = await import('@/lib/prisma');
+        const [encAccessToken, encRefreshToken] = await Promise.all([
+          encrypt(tokens.access_token),
+          tokens.refresh_token ? encrypt(tokens.refresh_token) : Promise.resolve(undefined),
+        ]);
         await prisma.emailAccount.update({
           where: { id: this.config.accountId },
           data: {
             accessToken: tokens.access_token,
+            encAccessToken,
             tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+            ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token, encRefreshToken } : {}),
           },
         });
       }
@@ -121,6 +133,7 @@ export class GmailAdapter implements EmailAdapter {
       const fromRaw = header('From');
       const emailMatch = fromRaw.match(/<([^>]+)>/);
       messages.push({
+        providerMessageId: ref.id!,
         fromEmail: (emailMatch ? emailMatch[1] : fromRaw).trim().toLowerCase(),
         subject: header('Subject'),
         date: header('Date') ? new Date(header('Date')) : new Date(Number(msg.data.internalDate)),

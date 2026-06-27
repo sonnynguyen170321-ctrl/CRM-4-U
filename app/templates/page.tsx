@@ -35,7 +35,7 @@ interface AbTestVariant {
   replyCount: number;
 }
 
-const MERGE_FIELDS = ['firstName', 'lastName', 'company', 'title', 'sdrName', 'sdrTitle'];
+const MERGE_FIELDS = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'sdrName', 'sdrTitle'];
 
 const PREVIEW_DATA: Record<string, string> = {
   firstName: 'Sarah',

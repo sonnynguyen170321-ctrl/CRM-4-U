@@ -10,6 +10,7 @@ export type SessionUser = {
   lastName: string;
   role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen';
   isManager?: boolean;
+  tenantId?: string;
 };
 
 /** Get the authenticated session user from a Server Component or API route. */
@@ -60,14 +61,33 @@ export { computeVisibleUserIds };
  * The user IDs this viewer may see, or `null` for unrestricted.
  * Use in queries as: `userId: { in: ids }` / `assignedToId: { in: ids }`.
  */
+const visibleUserCache = new Map<string, { result: string[] | null; ts: number }>();
+const VISIBLE_USER_CACHE_TTL = 60_000;
+
 export async function getVisibleUserIds(user: SessionUser): Promise<string[] | null> {
   if (user.role === 'director') return null;
   if (user.role === 'sdr') return [user.id];
+
+  const cached = visibleUserCache.get(user.id);
+  if (cached && Date.now() - cached.ts < VISIBLE_USER_CACHE_TTL) {
+    return cached.result;
+  }
+
   const allUsers = await prisma.user.findMany({
     where: { isActive: true },
     select: { id: true, role: true, managerId: true },
   });
-  return computeVisibleUserIds(allUsers, user);
+  const result = computeVisibleUserIds(allUsers, user);
+  visibleUserCache.set(user.id, { result, ts: Date.now() });
+  return result;
+}
+
+export function clearVisibleUserCache(userId?: string) {
+  if (userId) {
+    visibleUserCache.delete(userId);
+  } else {
+    visibleUserCache.clear();
+  }
 }
 
 /** True when the viewer is allowed to see/modify data owned by `ownerId`. */

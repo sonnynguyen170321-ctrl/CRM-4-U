@@ -5,15 +5,24 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { createTemplateSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
+import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
+import type { Prisma } from '@prisma/client';
+
+const CACHE_TTL = 60;
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
 
+  const user = userOrRes as SessionUser;
   try {
     const { searchParams } = new URL(req.url);
     const channel = searchParams.get('channel');
     const search = searchParams.get('search') || '';
+    const cacheKey = listKey(user.tenantId, 'templates', `${channel ?? ''}:${search}`);
+
+    const cached = await cacheGet<any[]>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     const templates = await prisma.template.findMany({
       where: {
@@ -34,6 +43,7 @@ export async function GET(req: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     });
 
+    await cacheSet(cacheKey, templates, CACHE_TTL);
     return NextResponse.json(templates);
   } catch (err) {
     return handleApiError('api/templates GET', err);
@@ -61,6 +71,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await invalidateList(user.tenantId, 'templates');
     return NextResponse.json(template, { status: 201 });
   } catch (err) {
     return handleApiError('api/templates POST', err);

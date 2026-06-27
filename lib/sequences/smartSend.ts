@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
-import { EmailService } from '@/lib/email/EmailService';
 import { renderTemplate } from '@/lib/templates/render';
 import { advanceSequence } from './engine';
+import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 
 const BUSINESS_HOUR_START = 9;
 const BUSINESS_HOUR_END = 17;
@@ -131,14 +131,40 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
   let skipped = 0;
   const errors: string[] = [];
 
+  const sequenceStepIds = [...new Set(dueTasks.filter(t => t.sequenceId && t.sequenceStep != null).map(t => `${t.sequenceId}:${t.sequenceStep}`))];
+  const stepMap = new Map<string, { autoComplete: boolean; channel: string; order: number; template: any }>();
+  if (sequenceStepIds.length > 0) {
+    const steps = await prisma.sequenceStep.findMany({
+      where: {
+        OR: sequenceStepIds.map(key => {
+          const [seqId, order] = key.split(':');
+          return { sequenceId: seqId, order: parseInt(order, 10) };
+        }),
+      },
+      include: { template: { include: { abVariants: true } } },
+    });
+    for (const s of steps) {
+      stepMap.set(`${s.sequenceId}:${s.order}`, s);
+    }
+  }
+
+  const assigneeIds = [...new Set(dueTasks.map(t => t.lead.assignedToId).filter(Boolean))];
+  const accountMap = new Map<string, { id: string }>();
+  if (assigneeIds.length > 0) {
+    const accounts = await prisma.emailAccount.findMany({
+      where: { userId: { in: assigneeIds }, isActive: true },
+      select: { id: true, userId: true },
+    });
+    for (const a of accounts) {
+      accountMap.set(a.userId, a);
+    }
+  }
+
   for (const task of dueTasks) {
     try {
       const { lead } = task;
 
-      const step = await prisma.sequenceStep.findFirst({
-        where: { sequenceId: task.sequenceId!, order: task.sequenceStep ?? -1 },
-        include: { template: { include: { abVariants: true } } },
-      });
+      const step = stepMap.get(`${task.sequenceId}:${task.sequenceStep}`);
 
       const template = step?.template;
       const eligible =
@@ -156,9 +182,7 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
         continue;
       }
 
-      const account = await prisma.emailAccount.findFirst({
-        where: { userId: lead.assignedToId, isActive: true },
-      });
+      const account = accountMap.get(lead.assignedToId);
       if (!account) { skipped++; continue; }
 
       if (!(await canSendNow(account.id))) { skipped++; continue; }
@@ -173,8 +197,8 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       let body: string;
 
       let selectedVariantId: string | null = null;
-      const variantA = template.abVariants.find(v => v.version === 'A');
-      const variantB = template.abVariants.find(v => v.version === 'B');
+      const variantA = template.abVariants.find((v: any) => v.version === 'A');
+      const variantB = template.abVariants.find((v: any) => v.version === 'B');
       if (variantA && variantB) {
         const useB = Math.random() < 0.5;
         const selected = useB ? variantB : variantA;
@@ -187,18 +211,30 @@ export async function scheduleSmartSends(): Promise<{ sent: number; skipped: num
       }
 
       try {
-        const service = await EmailService.fromAccount(account);
-        await service.send({
-          from: account.email,
+        const outbound = await createOutboundMessage({
+          leadId: lead.id,
+          accountId: account.id,
+          templateId: template.id,
           to: lead.email,
           subject,
-          text: body,
-          html: body.replace(/\n/g, '<br>'),
+          body,
+          tenantId: lead.tenantId,
         });
-        await incrementSendCount(account.id);
+        await enqueueEmailSendWorkflow(
+          {
+            outboundMessageId: outbound.id,
+            accountId: account.id,
+            to: lead.email,
+            subject,
+            body,
+            leadId: lead.id,
+            templateId: template.id,
+          },
+          lead.tenantId
+        );
       } catch (sendErr) {
         await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
-        console.error(`[smart-send] send failed for task ${task.id}:`, sendErr);
+        console.error(`[smart-send] enqueue failed for task ${task.id}:`, sendErr);
         errors.push(task.id);
         continue;
       }

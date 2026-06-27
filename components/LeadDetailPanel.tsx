@@ -18,6 +18,9 @@ import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import MailComposerModal from '@/components/MailComposerModal';
+import dynamic from 'next/dynamic';
+
+const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
 
 interface LeadDetail {
   id: string;
@@ -121,6 +124,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [logNote, setLogNote] = useState('');
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
+  const [showDialer, setShowDialer] = useState(false);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -247,13 +251,28 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       });
     });
 
+    if (lead && (lead as any).outboundMessages) {
+      ((lead as any).outboundMessages as any[]).forEach((m) => {
+        list.push({
+          id: m.id,
+          date: m.sentAt || m.createdAt,
+          type: 'activity',
+          title: `Outbound Email: ${m.subject || '— no subject —'}`,
+          description: `To: ${m.to} · Status: ${m.status.toUpperCase()}${
+            m.errorMessage ? ` · Error: ${m.errorMessage}` : ''
+          }${m.body ? `\n\n${m.body}` : ''}`,
+          channel: 'email',
+        });
+      });
+    }
+
     return list.sort((a, b) => {
       const aPinned = a.type === 'note' && a.isPinned;
       const bPinned = b.type === 'note' && b.isPinned;
       if (bPinned !== aPinned) return bPinned ? 1 : -1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
-  }, [notes, tasks, adHocActivities]);
+  }, [notes, tasks, adHocActivities, lead]);
 
   if (!leadId) return null;
 
@@ -421,6 +440,49 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       showToast('Failed to log activity', 'error');
     } finally {
       setSavingLog(false);
+    }
+  };
+
+  const handleDialerHangUp = async (notes: string, outcome: string) => {
+    if (!lead) return;
+    try {
+      const typeMap: Record<string, string> = {
+        'Connected - Pitching': 'connected_interested',
+        'Connected - Meeting Booked': 'connected_meeting_booked',
+        'Busy/No Answer': 'no_answer',
+        'Gatekeeper Rejection': 'wrong_number',
+        'Left Voicemail': 'voicemail_left',
+      };
+      
+      const actionValue = typeMap[outcome] || 'no_answer';
+      const generatedDescription = `Outbound call completed. Outcome: ${outcome}${notes ? `: ${notes}` : ''}`;
+      
+      await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          type: 'call_logged',
+          channel: 'phone',
+          description: generatedDescription,
+          metadata: { action: actionValue, outcome, notes },
+        }),
+      });
+
+      showToast('Call logged successfully', 'success');
+
+      setAdHocActivities((prev) => [{
+        id: Date.now().toString(),
+        type: 'call_logged',
+        channel: 'phone',
+        metadata: { action: actionValue, outcome, notes },
+        createdAt: new Date().toISOString(),
+        user: { firstName: '', lastName: '' },
+      }, ...prev]);
+
+      setShowDialer(false);
+    } catch {
+      showToast('Failed to log call activity', 'error');
     }
   };
 
@@ -701,19 +763,9 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 <button
                   type="button"
                   disabled={!lead.phone}
-                  onClick={async () => {
+                  onClick={() => {
                     if (!lead.phone) return;
-                    try {
-                      await navigator.clipboard.writeText(lead.phone);
-                      showToast(`${lead.phone} copied to clipboard`, 'success');
-                    } catch {
-                      showToast('Copy failed — open dialer manually', 'info');
-                    }
-                    setLogChannel('phone');
-                    setLogAction('');
-                    setLogNote('');
-                    setLogResponse(false);
-                    setShowLogActivity(true);
+                    setShowDialer(true);
                   }}
                   title={lead.phone ? `Call ${lead.phone}` : 'No phone number'}
                   className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all text-center gap-1 ${
@@ -1304,6 +1356,39 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
               )}
 
+              {/* Enrollment History */}
+              {(lead as any).sequenceEnrollments && ((lead as any).sequenceEnrollments as any[]).length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
+                    Enrollment History
+                  </h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-4">
+                    {((lead as any).sequenceEnrollments as any[]).map((enr) => (
+                      <div key={enr.id} className="flex justify-between items-center p-2.5 bg-background/30 border border-card-border rounded-xl text-xs font-sans">
+                        <div>
+                          <p className="font-semibold text-text-primary">{enr.sequence?.name || 'Unknown Sequence'}</p>
+                          <p className="text-[9px] text-text-muted font-mono mt-0.5">
+                            Started: {new Date(enr.startedAt).toLocaleDateString()}{' '}
+                            {enr.completedAt ? `· Ended: ${new Date(enr.completedAt).toLocaleDateString()}` : ''}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border font-mono capitalize ${
+                          enr.status === 'active'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : enr.status === 'paused'
+                            ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/20'
+                            : enr.status === 'completed'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-card-border text-text-muted'
+                        }`}>
+                          {enr.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Available sequences */}
               <div>
                 <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
@@ -1516,6 +1601,20 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 .catch(() => {});
             }
           }}
+        />
+      )}
+
+      {showDialer && lead && (
+        <CallDialerModal
+          lead={{
+            id: lead.id,
+            firstName: lead.firstName,
+            lastName: lead.lastName,
+            company: lead.company,
+            phone: lead.phone ?? undefined,
+          }}
+          onClose={() => setShowDialer(false)}
+          onHangUp={handleDialerHangUp}
         />
       )}
     </div>

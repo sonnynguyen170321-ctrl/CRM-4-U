@@ -20,6 +20,7 @@ export async function GET() {
     lastName: profile.lastName,
     email: profile.email,
     timezone: profile.timezone ?? 'Asia/Ho_Chi_Minh',
+    avatarUrl: profile.avatarUrl ?? null,
     role: profile.role,
   });
 }
@@ -32,11 +33,13 @@ export async function PUT(req: NextRequest) {
   let firstName: string | undefined;
   let lastName: string | undefined;
   let timezone: string | undefined;
+  let avatarUrl: string | undefined;
   try {
     const body = await req.json();
     firstName = typeof body.firstName === 'string' ? body.firstName.trim() : undefined;
     lastName = typeof body.lastName === 'string' ? body.lastName.trim() : undefined;
     timezone = typeof body.timezone === 'string' ? body.timezone.trim() : undefined;
+    avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim() : undefined;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -50,6 +53,9 @@ export async function PUT(req: NextRequest) {
   if (timezone !== undefined && timezone.length > 60) {
     return NextResponse.json({ error: 'timezone too long' }, { status: 400 });
   }
+  if (avatarUrl !== undefined && avatarUrl.length > 1000) {
+    return NextResponse.json({ error: 'avatarUrl too long' }, { status: 400 });
+  }
 
   try {
     const updated = await prisma.user.update({
@@ -58,6 +64,8 @@ export async function PUT(req: NextRequest) {
         ...(firstName !== undefined && { firstName }),
         ...(lastName !== undefined && { lastName }),
         ...(timezone !== undefined && { timezone }),
+        // Empty string clears the avatar (stored as NULL).
+        ...(avatarUrl !== undefined && { avatarUrl: avatarUrl || null }),
       },
     });
 
@@ -67,6 +75,7 @@ export async function PUT(req: NextRequest) {
       lastName: updated.lastName,
       email: updated.email,
       timezone: updated.timezone ?? 'Asia/Ho_Chi_Minh',
+      avatarUrl: updated.avatarUrl ?? null,
       role: updated.role,
     });
   } catch (err) {

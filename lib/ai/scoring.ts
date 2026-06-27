@@ -16,7 +16,7 @@ interface LeadScoringInput {
   linkedIn?: string | null;
   whatsApp?: string | null;
   stage: string;
-  priority: string;
+  crmPriorityScore: string;
   source?: string | null;
   tags?: string[];
   lastContactedAt?: string | null;
@@ -165,7 +165,7 @@ export function scoreLead(lead: LeadScoringInput): AIScoreResult {
     channels: getChannelScore(lead),
     stage: getStageScore(lead.stage),
     recency: getRecencyScore(lead.lastContactedAt),
-    priority: getPriorityScore(lead.priority),
+    priority: getPriorityScore(lead.crmPriorityScore),
     source: getSourceScore(lead.source),
     engagement: getEngagementScore(lead.activities),
     penalty: getPenaltyScore(lead),
@@ -177,7 +177,7 @@ export function scoreLead(lead: LeadScoringInput): AIScoreResult {
   const label: 'hot' | 'warm' | 'cold' = score >= 60 ? 'hot' : score >= 35 ? 'warm' : 'cold';
 
   const insights = generateInsights(lead, score);
-  const recommendation = generateRecommendation(score, lead.stage, lead.priority);
+  const recommendation = generateRecommendation(score, lead.stage, lead.crmPriorityScore);
 
   return { score, label, insights, recommendation };
 }

@@ -15,6 +15,8 @@ export interface SendEmailOptions {
 
 /** A message fetched from a connected inbox (metadata only — no body). */
 export interface InboxMessage {
+  /** Provider's unique message ID (Gmail msg.id, Graph message.id, IMAP UID). */
+  providerMessageId: string;
   fromEmail: string;
   subject: string;
   date: Date;
@@ -23,7 +25,8 @@ export interface InboxMessage {
 }
 
 export interface EmailAdapter {
-  send(options: SendEmailOptions): Promise<void>;
+  /** Send an email. Returns the provider's message ID if available (for reconciliation). */
+  send(options: SendEmailOptions): Promise<string | undefined>;
   /** Fetch inbox messages received since `since`. Optional — not all adapters sync. */
   fetchMessagesSince?(since: Date): Promise<InboxMessage[]>;
 }
@@ -39,7 +42,7 @@ export class EmailService {
     this.adapter = adapter;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     return this.adapter.send(options);
   }
 
@@ -51,25 +54,39 @@ export class EmailService {
 
   static async fromAccount(account: EmailAccount): Promise<EmailService> {
     switch (account.provider) {
-      case 'gmail':
+      case 'gmail': {
+        const accessToken = account.encAccessToken
+          ? await decrypt(account.encAccessToken)
+          : account.accessToken;
+        const refreshToken = account.encRefreshToken
+          ? await decrypt(account.encRefreshToken)
+          : account.refreshToken;
         return new EmailService(
           new GmailAdapter({
-            accessToken: account.accessToken!,
-            refreshToken: account.refreshToken!,
+            accessToken: accessToken!,
+            refreshToken: refreshToken!,
             tokenExpiry: account.tokenExpiry ?? undefined,
             accountId: account.id,
           })
         );
+      }
 
-      case 'outlook':
+      case 'outlook': {
+        const accessToken = account.encAccessToken
+          ? await decrypt(account.encAccessToken)
+          : account.accessToken;
+        const refreshToken = account.encRefreshToken
+          ? await decrypt(account.encRefreshToken)
+          : account.refreshToken;
         return new EmailService(
           new OutlookAdapter({
-            accessToken: account.accessToken!,
-            refreshToken: account.refreshToken!,
+            accessToken: accessToken!,
+            refreshToken: refreshToken!,
             tokenExpiry: account.tokenExpiry ?? undefined,
             accountId: account.id,
           })
         );
+      }
 
       case 'imap_smtp':
         return new EmailService(

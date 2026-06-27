@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { createTaskForStep, unenrollLead } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
@@ -40,6 +40,14 @@ export async function POST(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (lead.tenantId !== sequence.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (lead.sequenceId && lead.sequenceId !== id) {
       const prevSeq = await prisma.sequence.findUnique({ where: { id: lead.sequenceId } });
       await unenrollLead(leadId, lead.sequenceId);
@@ -53,6 +61,23 @@ export async function POST(
         },
       });
     }
+
+    // Close any existing active enrollments before creating a new one
+    await prisma.sequenceEnrollment.updateMany({
+      where: { leadId, status: 'active' },
+      data: { status: 'unenrolled', completedAt: new Date() },
+    });
+
+    // Create new enrollment record
+    await prisma.sequenceEnrollment.create({
+      data: {
+        leadId,
+        sequenceId: id,
+        status: 'active',
+        currentStep: 1,
+        tenantId: lead.tenantId,
+      },
+    });
 
     const updatedLead = await prisma.lead.update({
       where: { id: leadId },
@@ -105,9 +130,25 @@ export async function DELETE(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    await unenrollLead(leadId, id);
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const sequence = await prisma.sequence.findUnique({ where: { id } });
+    if (!sequence) {
+      return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
+    }
+
+    if (lead.tenantId !== sequence.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await prisma.sequenceEnrollment.updateMany({
+      where: { leadId, sequenceId: id, status: { in: ['active', 'paused'] } },
+      data: { status: 'unenrolled', completedAt: new Date() },
+    });
+
+    await unenrollLead(leadId, id);
     await prisma.activity.create({
       data: {
         userId: user.id,

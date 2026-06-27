@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { snapToBusinessDay } from '@/lib/dates/businessDays';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
-import { inngest } from '@/lib/inngest/client';
+import { enqueue } from '@/lib/bullmq/enqueue';
+import { JobType } from '@/lib/bullmq/types';
 
 /**
  * Sequence execution engine (SKILL.md §3).
@@ -22,7 +23,7 @@ export function computeStepDueDate(base: Date, step: Pick<SequenceStep, 'delayDa
 
 /** Create the task for one sequence step and update the lead's nextTaskDue. */
 export async function createTaskForStep(
-  lead: Pick<Lead, 'id' | 'assignedToId' | 'priority'>,
+  lead: Pick<Lead, 'id' | 'assignedToId' | 'crmPriorityScore'>,
   sequence: Pick<Sequence, 'id' | 'name'>,
   step: SequenceStep,
   baseDate: Date
@@ -40,7 +41,7 @@ export async function createTaskForStep(
       dueDate,
       sequenceId: sequence.id,
       sequenceStep: step.order,
-      priority: PRIORITY_MAP[lead.priority],
+      priority: PRIORITY_MAP[lead.crmPriorityScore],
     },
   });
 
@@ -49,16 +50,19 @@ export async function createTaskForStep(
     data: { nextTaskDue: dueDate },
   });
 
-  // Dynamically schedule execution in Inngest if the step is an automated email task
+  // Schedule delayed execution on the BullMQ SEQUENCE queue for automated email steps.
+  // The JobRun durable mirror makes this rebuildable from the DB (maintenance worker's
+  // `missing-delayed` repair), so a queue blip here must never fail task creation.
   if (task.type === 'email' && step.autoComplete) {
     try {
-      await inngest.send({
-        name: 'crm/task.execute',
-        data: { taskId: task.id },
-        ts: dueDate.getTime(),
-      });
+      const delay = Math.max(0, dueDate.getTime() - Date.now());
+      await enqueue(
+        JobType.SEQUENCE_EXECUTE_TASK,
+        { taskId: task.id },
+        { delay, tenantId: task.tenantId },
+      );
     } catch (err) {
-      console.error(`[createTaskForStep] Failed to enqueue Inngest execution for task ${task.id}:`, err);
+      console.error(`[createTaskForStep] Failed to schedule execution for task ${task.id}:`, err);
     }
   }
 
@@ -80,7 +84,7 @@ export async function advanceSequence(
     where: { id: task.leadId },
     select: {
       id: true, sequenceId: true, sequenceStep: true, sequenceStatus: true,
-      assignedToId: true, firstName: true, lastName: true, priority: true,
+      assignedToId: true, firstName: true, lastName: true, crmPriorityScore: true,
     },
   });
   if (!lead || lead.sequenceId !== task.sequenceId) return;
@@ -93,6 +97,9 @@ export async function advanceSequence(
 
   const totalSteps = sequence.steps.length;
   const nextStepOrder = (lead.sequenceStep ?? task.sequenceStep) + 1;
+
+  // Don't queue further work while paused (reply/bounce); resume re-creates it
+  if (lead.sequenceStatus === 'paused') return;
 
   if (nextStepOrder > totalSteps) {
     // All steps done — unenroll and notify
@@ -124,12 +131,9 @@ export async function advanceSequence(
   }
 
   await prisma.lead.update({
-    where: { id: lead.id },
+    where: { id: lead.id, sequenceStep: lead.sequenceStep },
     data: { sequenceStep: nextStepOrder },
   });
-
-  // Don't queue further work while paused (reply/bounce); resume re-creates it
-  if (lead.sequenceStatus === 'paused') return;
 
   const nextStep = sequence.steps.find((s) => s.order === nextStepOrder);
   if (nextStep) {
@@ -175,6 +179,8 @@ export async function pauseSequence(
     select: { name: true },
   });
 
+  // No dedicated "paused" ActivityType in the enum — record it as a sequence_unenrolled
+  // activity with `paused: true` in metadata so the feed/analytics can distinguish it.
   await prisma.activity.create({
     data: {
       userId: actorUserId,

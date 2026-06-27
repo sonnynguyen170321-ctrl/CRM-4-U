@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useAppContext } from '@/context/AppContext';
+import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
 
 interface Notification {
   id: string;
@@ -48,6 +49,8 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [bellOpen, setBellOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
@@ -75,11 +78,28 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
       .then(() => fetchBellData())
       .catch(() => fetchBellData());
 
+    // Notification mute preferences (per-browser); re-read when Settings updates them.
+    setNotifPrefs(readNotifPrefs());
+    const syncPrefs = () => setNotifPrefs(readNotifPrefs());
+
+    // Avatar (server-persisted); refresh live when the profile is saved in Settings.
+    const loadAvatar = () => {
+      fetch('/api/settings')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setAvatarUrl(d?.avatarUrl ?? null))
+        .catch(() => {});
+    };
+    loadAvatar();
+
     window.addEventListener('crm:reminder-created', fetchBellData);
     window.addEventListener('crm:notifications-updated', fetchBellData);
+    window.addEventListener(NOTIF_PREFS_EVENT, syncPrefs);
+    window.addEventListener('crm:profile-updated', loadAvatar);
     return () => {
       window.removeEventListener('crm:reminder-created', fetchBellData);
       window.removeEventListener('crm:notifications-updated', fetchBellData);
+      window.removeEventListener(NOTIF_PREFS_EVENT, syncPrefs);
+      window.removeEventListener('crm:profile-updated', loadAvatar);
     };
   }, []);
 
@@ -128,13 +148,16 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
     return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('keydown', handleKey); };
   }, []);
 
+  // Hide notification types the user muted in Settings (always-on events are never muted).
+  const visibleNotifications = notifications.filter((n) => !isMuted(n.type, notifPrefs));
+
   const unreadCount =
-    notifications.filter((n) => !n.isRead).length +
+    visibleNotifications.filter((n) => !n.isRead).length +
     reminders.filter((r) => !r.isDismissed && new Date(r.dueAt) <= new Date()).length;
 
   // Unified bell items sorted newest-first (reminders by dueAt, notifications by createdAt)
   const bellItems: BellItem[] = [
-    ...notifications.map((n) => ({ kind: 'notification' as const, ...n })),
+    ...visibleNotifications.map((n) => ({ kind: 'notification' as const, ...n })),
     ...reminders.filter((r) => !r.isDismissed).map((r) => ({ kind: 'reminder' as const, ...r })),
   ].sort((a, b) => {
     const aDate = a.kind === 'notification' ? a.createdAt : a.dueAt;
@@ -460,8 +483,13 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             aria-haspopup="menu"
             className="flex items-center gap-2 hover:bg-card-border/30 px-2 py-1.5 rounded-lg transition-colors duration-150 focus-ring"
           >
-            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase">
-              {displayInitial}
+            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase overflow-hidden">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
             </div>
             <div className="flex flex-col text-left">
               <span className="text-xs font-semibold text-text-primary leading-tight">{displayName}</span>
@@ -476,39 +504,46 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             <>
               <div className="fixed inset-0 z-30" onClick={() => setPersonaOpen(false)} />
               <div role="menu" aria-orientation="vertical" className="absolute right-0 mt-2 w-56 bg-card-bg border border-card-border rounded-xl shadow-xl shadow-black/10 z-40 py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted block">
-                    Simulate Role (Showcase)
-                  </span>
-                  <p className="text-[11px] text-text-secondary leading-normal mt-0.5">
-                    Test how the interface adapts to different access scopes.
-                  </p>
-                </div>
-                {(
-                  [
-                    { role: 'sdr', label: 'SDR View', icon: '👤' },
-                    { role: 'team_lead', label: 'Team Lead View', icon: '🎯' },
-                    { role: 'floor_manager', label: 'Floor Manager View', icon: '🏢' },
-                    { role: 'director', label: 'Director View', icon: '👑' },
-                  ] as const
-                ).map(({ role, label, icon }) => (
-                  <button
-                    key={role}
-                    role="menuitem"
-                    onClick={() => { onRoleChange(role); setPersonaOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
-                      currentRole === role
-                        ? 'text-brand-red font-semibold bg-brand-red/5'
-                        : 'text-text-primary hover:bg-background'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
-                    </span>
-                    {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
-                  </button>
-                ))}
-                <div className="my-1 border-t border-card-border" />
+                {process.env.NODE_ENV !== 'production' && (
+                  <>
+                    <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted block">
+                        Simulate Role (Showcase)
+                      </span>
+                      <p className="text-[11px] text-text-secondary leading-normal mt-0.5">
+                        Test how the interface adapts to different access scopes.
+                      </p>
+                      <p className="text-[9px] text-brand-orange leading-normal mt-1 italic font-medium">
+                        ⚠️ UI simulation only — server permissions unchanged.
+                      </p>
+                    </div>
+                    {(
+                      [
+                        { role: 'sdr', label: 'SDR View', icon: '👤' },
+                        { role: 'team_lead', label: 'Team Lead View', icon: '🎯' },
+                        { role: 'floor_manager', label: 'Floor Manager View', icon: '🏢' },
+                        { role: 'director', label: 'Director View', icon: '👑' },
+                      ] as const
+                    ).map(({ role, label, icon }) => (
+                      <button
+                        key={role}
+                        role="menuitem"
+                        onClick={() => { onRoleChange(role); setPersonaOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
+                          currentRole === role
+                            ? 'text-brand-red font-semibold bg-brand-red/5'
+                            : 'text-text-primary hover:bg-background'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
+                        </span>
+                        {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-card-border" />
+                  </>
+                )}
                 <button
                   role="menuitem"
                   onClick={() => signOut({ callbackUrl: '/login' })}

@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
+import { tenantStorage } from '@/lib/tenant-context';
 
-const prisma = new PrismaClient();
+const raw = new PrismaClient();
 
 const TODAY = new Date();
 const d = (offsetDays: number, hour = 10) => {
@@ -12,23 +14,35 @@ const d = (offsetDays: number, hour = 10) => {
 };
 
 async function main() {
+  const tenantId = 'default-tenant';
   console.log('🌱 Seeding Telestar CRM...');
 
-  // ─── Clean ────────────────────────────────────────────────────────────────
-  await prisma.activity.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.reminder.deleteMany();
-  await prisma.note.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.sequenceStep.deleteMany();
-  await prisma.lead.deleteMany();
-  await prisma.sequence.deleteMany();
-  await prisma.template.deleteMany();
-  await prisma.campaignSdr.deleteMany();
-  await prisma.campaign.deleteMany();
-  await prisma.client.deleteMany();
-  await prisma.emailAccount.deleteMany();
-  await prisma.user.deleteMany();
+  // ─── Clean (use raw client for cleanup to avoid tenant scoping issues) ─────
+  await raw.activity.deleteMany();
+  await raw.notification.deleteMany();
+  await raw.reminder.deleteMany();
+  await raw.note.deleteMany();
+  await raw.task.deleteMany();
+  await raw.sequenceStep.deleteMany();
+  await raw.lead.deleteMany();
+  await raw.sequence.deleteMany();
+  await raw.template.deleteMany();
+  await raw.campaignSdr.deleteMany();
+  await raw.campaign.deleteMany();
+  await raw.client.deleteMany();
+  await raw.emailAccount.deleteMany();
+  await raw.user.deleteMany();
+  await raw.tenant.deleteMany();
+
+  // ─── Tenants ──────────────────────────────────────────────────────────────
+  await raw.tenant.upsert({
+    where: { id: 'default-tenant' },
+    update: {},
+    create: {
+      id: 'default-tenant',
+      name: 'Default Tenant',
+    },
+  });
 
   // ─── Users ────────────────────────────────────────────────────────────────
   const pw = await hash('telestar2026', 12);
@@ -448,11 +462,11 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, templateId: tmplColdEmail.id, instructions: 'Send personalised cold intro email. Reference company size or recent news.', autoComplete: true },
-          { order: 2, channel: 'email', delayDays: 3, delayHours: 0, templateId: tmplFollowUp.id, instructions: 'Send follow-up email if no reply to Day 0.', autoComplete: true },
-          { order: 3, channel: 'phone', delayDays: 2, delayHours: 0, templateId: tmplCallScript.id, instructions: 'Make discovery call. Log outcome. If connected, attempt to book meeting.', autoComplete: false },
-          { order: 4, channel: 'linkedin', delayDays: 1, delayHours: 0, templateId: tmplLinkedIn.id, instructions: 'Send LinkedIn connection request with personalised note.', autoComplete: false },
-          { order: 5, channel: 'email', delayDays: 4, delayHours: 0, instructions: 'Final break-up email. Keep it short — give them an easy out.', autoComplete: true },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, templateId: tmplColdEmail.id, instructions: 'Send personalised cold intro email. Reference company size or recent news.', autoComplete: true, tenantId },
+          { order: 2, channel: 'email', delayDays: 3, delayHours: 0, templateId: tmplFollowUp.id, instructions: 'Send follow-up email if no reply to Day 0.', autoComplete: true, tenantId },
+          { order: 3, channel: 'phone', delayDays: 2, delayHours: 0, templateId: tmplCallScript.id, instructions: 'Make discovery call. Log outcome. If connected, attempt to book meeting.', autoComplete: false, tenantId },
+          { order: 4, channel: 'linkedin', delayDays: 1, delayHours: 0, templateId: tmplLinkedIn.id, instructions: 'Send LinkedIn connection request with personalised note.', autoComplete: false, tenantId },
+          { order: 5, channel: 'email', delayDays: 4, delayHours: 0, instructions: 'Final break-up email. Keep it short — give them an easy out.', autoComplete: true, tenantId },
         ],
       },
     },
@@ -466,9 +480,9 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Re-engagement email — reference previous conversation. New value prop or case study.', autoComplete: true },
-          { order: 2, channel: 'whatsapp', delayDays: 2, delayHours: 0, templateId: tmplWhatsApp.id, instructions: 'Send WhatsApp message — short, casual, not pushy.', autoComplete: false },
-          { order: 3, channel: 'phone', delayDays: 3, delayHours: 0, instructions: 'Final call attempt. If no answer, leave voicemail.', autoComplete: false },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Re-engagement email — reference previous conversation. New value prop or case study.', autoComplete: true, tenantId },
+          { order: 2, channel: 'whatsapp', delayDays: 2, delayHours: 0, templateId: tmplWhatsApp.id, instructions: 'Send WhatsApp message — short, casual, not pushy.', autoComplete: false, tenantId },
+          { order: 3, channel: 'phone', delayDays: 3, delayHours: 0, instructions: 'Final call attempt. If no answer, leave voicemail.', autoComplete: false, tenantId },
         ],
       },
     },
@@ -482,8 +496,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       createdById: dean.id,
       steps: {
         create: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 2, instructions: 'Send meeting confirmation + agenda. Attach relevant case study.', autoComplete: true },
-          { order: 2, channel: 'linkedin', delayDays: 1, delayHours: 0, instructions: 'Send LinkedIn follow-up — connect if not already connected.', autoComplete: false },
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 2, instructions: 'Send meeting confirmation + agenda. Attach relevant case study.', autoComplete: true, tenantId },
+          { order: 2, channel: 'linkedin', delayDays: 1, delayHours: 0, instructions: 'Send LinkedIn follow-up — connect if not already connected.', autoComplete: false, tenantId },
         ],
       },
     },
@@ -524,10 +538,41 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
     { firstName: 'Sara', lastName: 'Lindqvist', company: 'StockholmOps', title: 'Operations Manager', email: 's.lindqvist@stockholmops.se', stage: 'replied', priority: 'warm', assignedTo: priyaLG.id, campaign: cmpLG },
   ];
 
+  // ─── Accounts (from distinct lead companies) ───────────────────────────────
+  const uniqueCompanies = [...new Set(leadsData.map(l => l.company).filter(Boolean))];
+  const accounts = new Map<string, string>();
+  for (const company of uniqueCompanies) {
+    const account = await prisma.account.upsert({
+      where: { tenantId_name: { tenantId, name: company } },
+      create: { name: company, tenantId },
+      update: {},
+    });
+    accounts.set(company, account.id);
+  }
+  console.log(`✅ ${accounts.size} Accounts created`);
+
   const createdLeads: any[] = [];
   for (const l of leadsData) {
+    // Create or find Contact (person-level dedup)
+    const normalizedEmail = l.email.toLowerCase().trim();
+    let contact = await prisma.contact.findUnique({
+      where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+    });
+    if (contact) {
+      contact = await prisma.contact.update({
+        where: { id: contact.id },
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, normalizedPhone: l.phone?.replace(/\D/g, '') ?? null, normalizedLinkedIn: l.linkedIn?.toLowerCase().trim() ?? null },
+      });
+    } else {
+      contact = await prisma.contact.create({
+        data: { firstName: l.firstName, lastName: l.lastName, company: l.company, title: l.title, email: l.email, phone: l.phone ?? null, linkedIn: l.linkedIn ?? null, normalizedEmail, normalizedPhone: l.phone?.replace(/\D/g, '') ?? null, normalizedLinkedIn: l.linkedIn?.toLowerCase().trim() ?? null, tenantId },
+      });
+    }
+
     const lead = await prisma.lead.create({
       data: {
+        contactId: contact.id,
+        accountId: accounts.get(l.company) ?? null,
         firstName: l.firstName,
         lastName: l.lastName,
         company: l.company,
@@ -540,7 +585,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
         campaignId: l.campaign.id,
         source: 'CSV Import',
         tags: ['B2B', l.campaign.id === cmp1.id ? 'ERP' : l.campaign.id === cmp2.id ? 'Fintech' : 'Logistics'],
-        priority: l.priority as any,
+        crmPriorityScore: l.priority as any,
+        normalizedEmail,
         // Only genuinely-active leads carry an active enrollment. Leads that have
         // replied (or moved to meeting/won/lost) are auto-unenrolled per the product
         // rules, so they get no sequence link — keeps the UI from showing a phantom
@@ -705,6 +751,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   console.log(`   Leadgen:       dominic@telestar.vn / alex@telestar.vn / priya@telestar.vn`);
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, () => {
+  main()
+    .catch(console.error)
+    .finally(() => { prisma.$disconnect(); raw.$disconnect(); });
+});

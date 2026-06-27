@@ -1,4 +1,5 @@
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { encrypt } from '@/lib/crypto';
 
 interface OutlookConfig {
   accessToken: string;
@@ -49,11 +50,17 @@ export class OutlookAdapter implements EmailAdapter {
     }
     if (this.config.accountId) {
       const { prisma } = await import('@/lib/prisma');
+      const [encAccessToken, encRefreshToken] = await Promise.all([
+        encrypt(data.access_token),
+        data.refresh_token ? encrypt(data.refresh_token) : Promise.resolve(undefined),
+      ]);
       await prisma.emailAccount.update({
         where: { id: this.config.accountId },
         data: {
           accessToken: data.access_token,
+          encAccessToken,
           refreshToken: data.refresh_token ?? undefined,
+          encRefreshToken,
           tokenExpiry: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
         },
       });
@@ -61,7 +68,7 @@ export class OutlookAdapter implements EmailAdapter {
     return data.access_token;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     let token = this.config.accessToken;
 
     const payload: any = {
@@ -102,6 +109,8 @@ export class OutlookAdapter implements EmailAdapter {
       const err = await res.json();
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
+    // Graph sendMail returns 202 Accepted with no body — no message ID available for reconciliation.
+    return undefined;
   }
 
   /**
@@ -128,6 +137,7 @@ export class OutlookAdapter implements EmailAdapter {
 
     const data = await res.json();
     return ((data.value ?? []) as any[]).map((m) => ({
+      providerMessageId: m.id,
       fromEmail: (m.from?.emailAddress?.address ?? '').toLowerCase(),
       subject: m.subject ?? '',
       date: new Date(m.receivedDateTime),

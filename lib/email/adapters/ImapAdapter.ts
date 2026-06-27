@@ -22,7 +22,7 @@ export class ImapAdapter implements EmailAdapter {
     this.config = config;
   }
 
-  async send(options: SendEmailOptions): Promise<void> {
+  async send(options: SendEmailOptions): Promise<string | undefined> {
     const transporter = nodemailer.createTransport({
       host: this.config.smtpServer,
       port: this.config.smtpPort,
@@ -34,7 +34,7 @@ export class ImapAdapter implements EmailAdapter {
       tls: { rejectUnauthorized: process.env.MAIL_ALLOW_SELF_SIGNED !== 'true' },
     });
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: options.from,
       to: options.to,
       subject: options.subject,
@@ -42,6 +42,7 @@ export class ImapAdapter implements EmailAdapter {
       text: options.text,
       replyTo: options.replyTo,
     });
+    return info.messageId;
   }
 
   /** Fetch inbox messages received since `since` via IMAP (envelopes only). */
@@ -70,6 +71,7 @@ export class ImapAdapter implements EmailAdapter {
           for await (const msg of client.fetch(recent, { envelope: true })) {
             const from = msg.envelope?.from?.[0];
             messages.push({
+              providerMessageId: String(msg.uid),
               fromEmail: (from?.address ?? '').toLowerCase(),
               subject: msg.envelope?.subject ?? '',
               date: msg.envelope?.date ?? new Date(),

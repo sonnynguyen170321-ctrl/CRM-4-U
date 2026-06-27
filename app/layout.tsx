@@ -3,9 +3,9 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { AppProvider } from "@/context/AppContext";
 import { ToastProvider } from "@/context/ToastContext";
-import CommandPalette from "@/components/CommandPalette";
-import AiAssistant from "@/components/AiAssistant";
+import { Providers } from "./providers";
 import DashboardShell from "@/components/DashboardShell";
+import ClientLayoutAddons from "@/components/ClientLayoutAddons";
 
 export const metadata: Metadata = {
   title: {
@@ -34,11 +34,12 @@ export default function RootLayout({
         <SessionProvider>
           <AppProvider>
             <ToastProvider>
-              <DashboardShell>
-                {children}
-              </DashboardShell>
-              <CommandPalette />
-              <AiAssistant />
+              <Providers>
+                <DashboardShell>
+                  {children}
+                </DashboardShell>
+                <ClientLayoutAddons />
+              </Providers>
             </ToastProvider>
           </AppProvider>
         </SessionProvider>

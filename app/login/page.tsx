@@ -64,7 +64,9 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Accounts panel */}
+        {/* Demo Accounts panel — dev/showcase only; tree-shaken out of the production
+            bundle so it can never expose one-click admin sign-in in production. */}
+        {process.env.NODE_ENV !== 'production' && (
         <div className="mb-4 bg-card-bg border border-card-border rounded-2xl overflow-hidden">
           <button
             type="button"
@@ -98,6 +100,7 @@ export default function LoginPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Login card */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-lg">

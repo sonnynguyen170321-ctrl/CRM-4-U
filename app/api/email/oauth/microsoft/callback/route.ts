@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { encrypt } from '@/lib/crypto';
 import { exchangeMicrosoftCode } from '@/lib/email/adapters/OutlookAdapter';
 
 export async function GET(req: NextRequest) {
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
   try {
     const { email, accessToken, refreshToken, tokenExpiry } = await exchangeMicrosoftCode(code);
 
+    const [encAccessToken, encRefreshToken] = await Promise.all([
+      accessToken ? encrypt(accessToken) : Promise.resolve(null),
+      refreshToken ? encrypt(refreshToken) : Promise.resolve(null),
+    ]);
+
     if (!email) {
       return NextResponse.redirect(new URL('/settings?error=microsoft_no_email', req.url));
     }
@@ -45,6 +51,8 @@ export async function GET(req: NextRequest) {
         data: {
           accessToken,
           refreshToken,
+          encAccessToken,
+          encRefreshToken,
           tokenExpiry,
           isActive: true,
           lastSyncAt: new Date(),
@@ -58,6 +66,8 @@ export async function GET(req: NextRequest) {
           provider: 'outlook',
           accessToken,
           refreshToken,
+          encAccessToken,
+          encRefreshToken,
           tokenExpiry,
           isActive: true,
           lastSyncAt: new Date(),

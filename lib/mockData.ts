@@ -58,7 +58,7 @@ export interface Lead {
   sequenceStep: number | null;
   source: string;
   tags: string[];
-  priority: 'hot' | 'warm' | 'cold';
+  crmPriorityScore: 'hot' | 'warm' | 'cold';
   lastContactedAt: string | null;
   nextTaskDue: string | null;
   createdAt: string;
@@ -392,7 +392,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 2,
     source: 'Apollo Scrape',
     tags: ['Tech', 'Enterprise', 'US-West'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: '2026-06-01T09:00:00+07:00',
     nextTaskDue: '2026-06-03T10:00:00+07:00', // Today
     createdAt: '2026-05-15T08:00:00Z',
@@ -415,7 +415,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 3,
     source: 'LinkedIn Sales Nav',
     tags: ['Security', 'Europe'],
-    priority: 'warm',
+    crmPriorityScore: 'warm',
     lastContactedAt: '2026-05-28T14:30:00+07:00',
     nextTaskDue: '2026-06-03T15:30:00+07:00', // Today
     createdAt: '2026-05-18T08:00:00Z',
@@ -438,7 +438,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 1,
     source: 'Apollo Scrape',
     tags: ['AI', 'APAC', 'Fast-Track'],
-    priority: 'warm',
+    crmPriorityScore: 'warm',
     lastContactedAt: '2026-06-02T16:00:00+07:00',
     nextTaskDue: '2026-06-03T11:00:00+07:00', // Today
     createdAt: '2026-05-20T08:00:00Z',
@@ -461,7 +461,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: null,
     source: 'Website Form',
     tags: ['Inbound', 'Japan', 'Enterprise'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: null,
     nextTaskDue: '2026-06-03T09:00:00+07:00', // Today (Needs enrolling)
     createdAt: '2026-06-02T03:00:00Z',
@@ -484,7 +484,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 4, // Paused because replied
     source: 'LinkedIn Sales Nav',
     tags: ['Retail', 'Nordic'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: '2026-06-02T10:15:00+07:00', // Replied yesterday
     nextTaskDue: '2026-06-03T14:00:00+07:00', // Handle Reply task
     createdAt: '2026-05-10T08:00:00Z',
@@ -507,7 +507,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: null,
     source: 'Referral',
     tags: ['VN', 'Conglomerate'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: '2026-06-02T15:00:00+07:00', // Meeting booked yesterday
     nextTaskDue: null,
     createdAt: '2026-05-12T08:00:00Z',
@@ -530,7 +530,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: null,
     source: 'Apollo Scrape',
     tags: ['Italy', 'Challenging'],
-    priority: 'cold',
+    crmPriorityScore: 'cold',
     lastContactedAt: '2026-05-26T17:00:00+07:00',
     nextTaskDue: null,
     createdAt: '2026-05-01T08:00:00Z',
@@ -553,7 +553,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: null,
     source: 'Website Inbound',
     tags: ['Retail', 'Italy', 'Won-Lead'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: '2026-06-02T11:00:00+07:00',
     nextTaskDue: null,
     createdAt: '2026-05-22T08:00:00Z',
@@ -577,7 +577,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 3, // Call task
     source: 'Apollo Scrape',
     tags: ['Logistics', 'India'],
-    priority: 'hot',
+    crmPriorityScore: 'hot',
     lastContactedAt: '2026-05-25T11:00:00+07:00',
     nextTaskDue: '2026-05-28T10:00:00+07:00', // 6 Days Overdue!
     createdAt: '2026-05-10T08:00:00Z',
@@ -600,7 +600,7 @@ export const mockLeads: Lead[] = [
     sequenceStep: 1, // Email
     source: 'LinkedIn Sales Nav',
     tags: ['Infrastructure', 'France'],
-    priority: 'cold',
+    crmPriorityScore: 'cold',
     lastContactedAt: '2026-05-29T15:00:00+07:00',
     nextTaskDue: '2026-06-01T15:00:00+07:00', // 2 Days Overdue!
     createdAt: '2026-05-24T08:00:00Z',
