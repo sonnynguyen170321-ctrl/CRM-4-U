@@ -9,6 +9,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
+// Load environment variables from .env / .env.local
+const { loadEnvConfig } = require('@next/env');
+loadEnvConfig(path.resolve(__dirname, '..'));
+
 const workerEntry = path.resolve(__dirname, '..', 'workers', 'index.ts');
 
 const useWatch = process.argv.includes('--watch');

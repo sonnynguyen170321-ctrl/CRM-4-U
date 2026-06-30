@@ -14,6 +14,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
+// Load environment variables from .env / .env.local
+const { loadEnvConfig } = require('@next/env');
+loadEnvConfig(path.resolve(__dirname, '..'));
+
 const required = ['REDIS_URL', 'DIRECT_URL'];
 const missing = required.filter((v) => !process.env[v]);
 if (missing.length > 0) {
