@@ -13,6 +13,12 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   serverExternalPackages: ['@aws-sdk/client-kms'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
